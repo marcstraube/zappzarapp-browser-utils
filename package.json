@@ -239,7 +239,7 @@
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-import-resolver-typescript": "^4.4.4",
-    "eslint-plugin-boundaries": "^6.0.2",
+    "eslint-plugin-boundaries": "^7.1.0",
     "eslint-plugin-jsdoc": "^63.0.2",
     "eslint-plugin-prettier": "^5.0.0",
     "eslint-plugin-security": "^4.0.0",
