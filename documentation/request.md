@@ -491,8 +491,9 @@ parseRetryAfter('garbage'); // null
 ## Combining Abort Signals
 
 Merge two `AbortSignal` instances into one. When either signal fires, the
-combined signal aborts and listeners on the other signal are cleaned up to
-prevent memory leaks.
+combined signal aborts with that signal's reason. A thin wrapper around
+`AbortSignal.any()` — the signal dependency is platform-managed, so combining
+does not accumulate listeners on long-lived source signals.
 
 ```typescript
 import { combineAbortSignals } from '@zappzarapp/browser-utils/request';

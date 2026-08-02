@@ -706,18 +706,15 @@ export const RequestInterceptor = {
 
     /**
      * Convert error to RequestError.
+     * User/instance aborts are classified by signal state in performAttempt
+     * before this runs, so a remaining AbortError is a timeout.
      */
-    const toRequestError = (
-      e: unknown,
-      url: string,
-      timeout: number,
-      wasUserAborted: boolean
-    ): RequestError => {
+    const toRequestError = (e: unknown, url: string, timeout: number): RequestError => {
       if (e instanceof RequestError) {
         return e;
       }
       if (e instanceof DOMException && e.name === 'AbortError') {
-        return wasUserAborted ? RequestError.aborted(url) : RequestError.timeout(url, timeout);
+        return RequestError.timeout(url, timeout);
       }
       return RequestError.requestFailed(url, e);
     };
@@ -786,7 +783,7 @@ export const RequestInterceptor = {
       };
 
       // Combine long-lived signals (instance-level + user-provided) once per
-      // request, so retry attempts do not accumulate listeners on them
+      // request; the AbortSignal.any() dependency is platform-managed
       const baseSignal: AbortSignal = config.signal
         ? combineAbortSignals(config.signal, instanceSignal)
         : instanceSignal;
@@ -796,6 +793,7 @@ export const RequestInterceptor = {
       const performAttempt = async (): Promise<Response> => {
         const abortController = new AbortController();
         const timeoutId = createTimeout(config.timeout, abortController);
+        const timeoutMs = config.timeout ?? options.timeout;
 
         const signal = combineAbortSignals(baseSignal, abortController.signal);
 
@@ -813,8 +811,17 @@ export const RequestInterceptor = {
         } catch (e) {
           if (timeoutId !== null) clearTimeout(timeoutId);
 
-          const wasUserAborted = config.signal?.aborted === true || instanceSignal.aborted;
-          throw toRequestError(e, config.url, config.timeout ?? options.timeout, wasUserAborted);
+          // Classify aborts by signal state, not by the thrown value:
+          // AbortSignal.any() propagates custom abort reasons into fetch's
+          // rejection, which would otherwise be misread as a network failure
+          if (signal.aborted) {
+            const wasUserAborted = config.signal?.aborted === true || instanceSignal.aborted;
+            throw wasUserAborted
+              ? RequestError.aborted(config.url)
+              : RequestError.timeout(config.url, timeoutMs);
+          }
+
+          throw toRequestError(e, config.url, timeoutMs);
         }
       };
 
@@ -912,7 +919,7 @@ export const RequestInterceptor = {
             throw e.error;
           }
 
-          const error = toRequestError(e, config.url, config.timeout ?? options.timeout, false);
+          const error = toRequestError(e, config.url, config.timeout ?? options.timeout);
 
           const delay = retryDelayForError(retry, attempt, error);
           if (delay !== null) {
