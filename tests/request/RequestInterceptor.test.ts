@@ -1207,7 +1207,7 @@ describe('RequestInterceptor', () => {
         api.destroy();
       });
 
-      it('should call error middleware when throwing on error status', async () => {
+      it('should call error middleware exactly once when throwing on error status', async () => {
         mockFetch.mockResolvedValueOnce(
           new Response('Internal Server Error', {
             status: 500,
@@ -1225,7 +1225,36 @@ describe('RequestInterceptor', () => {
 
         await expect(api.fetch('/error')).rejects.toThrow();
 
-        expect(onError).toHaveBeenCalled();
+        expect(onError).toHaveBeenCalledTimes(1);
+
+        api.destroy();
+      });
+
+      it('should emit exactly one timing event with status and error', async () => {
+        mockFetch.mockResolvedValueOnce(
+          new Response('Internal Server Error', {
+            status: 500,
+            statusText: 'Internal Server Error',
+          })
+        );
+
+        const api = RequestInterceptor.create({
+          baseUrl: 'https://api.example.com',
+          throwOnError: true,
+        });
+
+        const timingHandler = vi.fn();
+        api.onTiming(timingHandler);
+
+        await expect(api.fetch('/error')).rejects.toThrow();
+
+        expect(timingHandler).toHaveBeenCalledTimes(1);
+        expect(timingHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            status: 500,
+            error: expect.stringContaining('500'),
+          })
+        );
 
         api.destroy();
       });

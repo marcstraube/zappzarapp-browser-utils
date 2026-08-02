@@ -554,6 +554,29 @@ describe('RequestInterceptor retry integration', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
+    it('should run error middleware and timing once for an exhausted throwOnError request', async () => {
+      mockFetch.mockImplementation(() => Promise.resolve(respond(503)));
+      const api = RequestInterceptor.create({
+        throwOnError: true,
+        retry: { maxRetries: 1, baseDelay: 100, jitter: false },
+      });
+      const onError = vi.fn();
+      api.use({ onError });
+      const timingHandler = vi.fn();
+      api.onTiming(timingHandler);
+
+      const guarded = api.get(`${BASE_URL}/down`).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(100);
+      const error = await guarded;
+
+      expect(error).toBeInstanceOf(RequestError);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(timingHandler).toHaveBeenCalledTimes(1);
+      expect(timingHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 503, error: expect.stringContaining('503') })
+      );
+    });
+
     it('should emit timing once for a retried request', async () => {
       mockFetch.mockResolvedValueOnce(respond(503)).mockResolvedValueOnce(respond(200));
       const api = RequestInterceptor.create({
