@@ -292,6 +292,7 @@ export interface RequestMiddleware {
 
 /**
  * Request timing information.
+ * Exactly one timing event is emitted per request.
  */
 export interface RequestTiming {
   readonly url: string;
@@ -299,7 +300,12 @@ export interface RequestTiming {
   readonly startTime: number;
   readonly endTime: number;
   readonly duration: number;
+  /** Response status; present when a response was received */
   readonly status?: number;
+  /**
+   * Error message; present when the request failed. A non-ok response with
+   * `throwOnError` carries both `status` and `error`.
+   */
   readonly error?: string;
 }
 
@@ -458,6 +464,17 @@ const DEFAULT_CONFIG: Required<
   expectedContentType: undefined,
   retry: undefined,
 } as const;
+
+/**
+ * Wrapper marking an error that has already been finalized (timing emitted,
+ * error middleware run). The retry loop unwraps and rethrows it as-is instead
+ * of sending it through the failure path a second time.
+ */
+class FinalizedRequestError extends Error {
+  constructor(readonly error: RequestError) {
+    super(error.message);
+  }
+}
 
 /**
  * Sensitive header names that should not be logged or leaked.
@@ -823,6 +840,33 @@ export const RequestInterceptor = {
           validateContentType(interceptedResponse.headers, config.expectedContentType);
         }
 
+        if (options.throwOnError && !response.ok) {
+          const error = RequestError.responseError(
+            response.status,
+            response.statusText,
+            parseRetryAfter(interceptedResponse.headers.get('Retry-After')) ?? undefined
+          );
+
+          // A response was received AND the request fails: one timing event
+          // carrying both the status and the error
+          emitTiming(
+            {
+              url: config.url,
+              method: config.method,
+              startTime,
+              endTime,
+              duration,
+              status: response.status,
+              error: error.message,
+            },
+            timingHandlers
+          );
+
+          await runErrorMiddleware(error, frozenConfig, middlewares);
+          // noinspection ExceptionCaughtLocallyJS
+          throw new FinalizedRequestError(error);
+        }
+
         emitTiming(
           {
             url: config.url,
@@ -834,17 +878,6 @@ export const RequestInterceptor = {
           },
           timingHandlers
         );
-
-        if (options.throwOnError && !response.ok) {
-          const error = RequestError.responseError(
-            response.status,
-            response.statusText,
-            parseRetryAfter(interceptedResponse.headers.get('Retry-After')) ?? undefined
-          );
-          await runErrorMiddleware(error, frozenConfig, middlewares);
-          // noinspection ExceptionCaughtLocallyJS
-          throw error;
-        }
 
         return interceptedResponse.response;
       };
@@ -874,6 +907,11 @@ export const RequestInterceptor = {
 
           return await finalize(response);
         } catch (e) {
+          if (e instanceof FinalizedRequestError) {
+            // Timing and error middleware already ran in finalize
+            throw e.error;
+          }
+
           const error = toRequestError(e, config.url, config.timeout ?? options.timeout, false);
 
           const delay = retryDelayForError(retry, attempt, error);
