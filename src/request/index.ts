@@ -14,6 +14,8 @@ export type {
   RequestInterceptorInstance,
 } from './RequestInterceptor.js';
 export { combineAbortSignals, validateContentType } from './RequestValidation.js';
+export { parseRetryAfter } from './RetryAfter.js';
+export type { RequestRetryConfig } from './RequestRetry.js';
 export {
   trackDownloadProgress,
   trackUploadProgress,

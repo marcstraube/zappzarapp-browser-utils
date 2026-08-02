@@ -140,6 +140,51 @@ describe('RequestInterceptor + RetryQueue', () => {
     queue.destroy();
   });
 
+  it('should honor Retry-After from a 429 via the retryAfterMs error hint', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        new Response('slow down', {
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: { 'Retry-After': '3' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('ok', { status: 200, headers: { 'Content-Type': 'text/plain' } })
+      );
+
+    const interceptor = RequestInterceptor.create({
+      baseUrl: 'https://api.example.com',
+      allowedProtocols: ['https:'],
+      throwOnError: true,
+    });
+
+    const queue = RetryQueue.create({
+      maxRetries: 2,
+      backoff: 'constant',
+      baseDelay: 100,
+      jitter: false,
+    });
+
+    const resultPromise = queue.add(async () => {
+      const response = await interceptor.fetch('/rate-limited');
+      return response.text();
+    });
+
+    // The queue must wait the server-provided 3s, not its 100ms backoff
+    await vi.advanceTimersByTimeAsync(2900);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    const result = await resultPromise;
+    expect(result).toBe('ok');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    interceptor.destroy();
+    queue.destroy();
+  });
+
   it('should pass auth headers through interceptor within retried requests', async () => {
     fetchSpy.mockRejectedValueOnce(new TypeError('Network error')).mockResolvedValueOnce(
       new Response('authenticated', {

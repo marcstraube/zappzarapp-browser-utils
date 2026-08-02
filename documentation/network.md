@@ -112,6 +112,22 @@ const queue = RetryQueue.create({
 | `linear`      | Delay = baseDelay \* attempt       |
 | `exponential` | Delay = baseDelay \* 2^(attempt-1) |
 
+### Retry-After Hints
+
+When a failed operation throws an error carrying a finite, non-negative numeric
+`retryAfterMs` field, that delay replaces the computed backoff for the next
+attempt — without jitter, capped at `maxDelay`. The `RequestInterceptor`
+(request module) sets this field on `RESPONSE_ERROR` when the server sent a
+`Retry-After` header, so both compose out of the box:
+
+```typescript
+const api = RequestInterceptor.create({ baseUrl, throwOnError: true });
+const queue = RetryQueue.create({ maxRetries: 3 });
+
+// A 429 with "Retry-After: 30" delays the next attempt by 30 seconds
+await queue.add(() => api.post('/sync', payload));
+```
+
 ### Rate Limiting
 
 Prevents reconnect storms by limiting how many operations are processed within a

@@ -33,6 +33,7 @@ api.destroy();
 | Request Middleware    | Transform requests before sending               |
 | Response Middleware   | Transform responses after receiving             |
 | Error Middleware      | Handle errors in middleware chain               |
+| Automatic Retry       | Opt-in retry with backoff and Retry-After       |
 | Request Timing        | Track request duration and performance          |
 | URL Validation        | Protocol allowlist and pattern blocking         |
 | Credential Protection | Prevent credential leakage to different origins |
@@ -57,6 +58,8 @@ api.destroy();
 | `HttpMethod`                 | HTTP method type                                  |
 | `RequestError`               | Request-specific error class                      |
 | `RequestErrorCode`           | Error code enum                                   |
+| `RequestRetryConfig`         | Retry configuration options                       |
+| `parseRetryAfter`            | Parse a Retry-After header value to milliseconds  |
 | `combineAbortSignals`        | Utility to merge two AbortSignals into one        |
 | `ProgressInfo`               | Progress data: loaded, total, percentage          |
 | `ProgressCallback`           | Progress event callback type                      |
@@ -79,6 +82,7 @@ api.destroy();
 | `validateCredentialOrigin` | `boolean`               | `true`       | Prevent credentials to different origins |
 | `blockPrivateIPs`          | `boolean`               | `false`      | Block requests to private/internal IPs   |
 | `expectedContentType`      | `string \| string[]`    | `undefined`  | Validate response Content-Type           |
+| `retry`                    | `RequestRetryConfig`    | `undefined`  | Automatic retry (see Automatic Retry)    |
 
 ## API Reference
 
@@ -353,18 +357,12 @@ api.use({
 });
 ```
 
-### Retry Middleware
+### Retry
 
-```typescript
-api.use({
-  onError: async (error, config) => {
-    if (error.code === 'TIMEOUT' && config.metadata?.retryCount === undefined) {
-      // Retry logic would need custom implementation
-      console.log('Request timed out, consider retry');
-    }
-  },
-});
-```
+Retries are built in — configure the `retry` option instead of writing
+middleware (see [Automatic Retry](#automatic-retry)). Middleware hooks only
+observe the final outcome: `onResponse` and `onError` run once per call, after
+all retry attempts.
 
 ### Request ID Middleware
 
@@ -415,6 +413,79 @@ const api2 = RequestInterceptor.create({
 const response = await api.fetch('/report.csv', {
   expectedContentType: 'text/csv',
 });
+```
+
+## Automatic Retry
+
+Opt-in retry for transient failures. Network errors, timeouts, and responses
+with a retryable status code are retried with backoff. A `Retry-After` response
+header (delta-seconds or HTTP-date) overrides the computed backoff delay —
+without jitter, capped at `maxDelay`.
+
+```typescript
+const api = RequestInterceptor.create({
+  baseUrl: 'https://api.example.com',
+  retry: { maxRetries: 3 },
+});
+
+// 429/503 responses with Retry-After are retried when the server allows it
+const response = await api.get('/rate-limited');
+```
+
+### Retry Options
+
+| Option        | Type              | Default                                   | Description                       |
+| ------------- | ----------------- | ----------------------------------------- | --------------------------------- |
+| `maxRetries`  | `number`          | `3`                                       | Retries after the initial request |
+| `backoff`     | `BackoffStrategy` | `'exponential'`                           | Backoff strategy                  |
+| `baseDelay`   | `number`          | `1000`                                    | Base delay in milliseconds        |
+| `maxDelay`    | `number`          | `30000`                                   | Delay cap (also for Retry-After)  |
+| `jitter`      | `boolean`         | `true`                                    | Jitter on computed backoff only   |
+| `methods`     | `HttpMethod[]`    | `['GET','HEAD','OPTIONS','PUT','DELETE']` | Methods eligible for retry        |
+| `statusCodes` | `number[]`        | `[408, 429, 500, 502, 503, 504]`          | Status codes that trigger retry   |
+
+### Retry Rules
+
+- Only idempotent methods are retried by default. Retrying `POST` can duplicate
+  side effects — opt in explicitly via `methods` if your endpoint is safe to
+  replay.
+- Requests with a `ReadableStream` body are never retried (the stream is
+  consumed by the first attempt).
+- Aborted requests are never retried; aborting during a retry wait rejects with
+  `ABORTED`.
+- Middleware sees only the final outcome: `onRequest` runs once before the first
+  attempt, `onResponse`/`onError` and timing hooks fire once per call.
+
+### RetryQueue Integration
+
+With `throwOnError`, a thrown `RESPONSE_ERROR` carries the parsed header as
+`retryAfterMs`. The `RetryQueue` (network module) picks this hint up and uses it
+instead of its computed backoff — useful for background sync without enabling
+interceptor-level retries:
+
+```typescript
+import { RetryQueue } from '@zappzarapp/browser-utils/network';
+
+const api = RequestInterceptor.create({
+  baseUrl: 'https://api.example.com',
+  throwOnError: true,
+});
+const queue = RetryQueue.create({ maxRetries: 3 });
+
+// A 429 with Retry-After delays the queue's next attempt accordingly
+await queue.add(() => api.post('/sync', payload));
+```
+
+### parseRetryAfter()
+
+Parse a `Retry-After` header value yourself:
+
+```typescript
+import { parseRetryAfter } from '@zappzarapp/browser-utils/request';
+
+parseRetryAfter('120'); // 120000 (delta-seconds)
+parseRetryAfter('Fri, 31 Dec 2027 23:59:59 GMT'); // ms until that date
+parseRetryAfter('garbage'); // null
 ```
 
 ## Combining Abort Signals

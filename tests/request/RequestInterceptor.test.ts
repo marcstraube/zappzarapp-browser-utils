@@ -63,6 +63,13 @@ describe('RequestInterceptor', () => {
       const error = RequestError.responseError(404, 'Not Found');
       expect(error.code).toBe('RESPONSE_ERROR');
       expect(error.message).toBe('Response error: 404 Not Found');
+      expect(error.retryAfterMs).toBeUndefined();
+    });
+
+    it('should create RESPONSE_ERROR error with retryAfterMs', () => {
+      const error = RequestError.responseError(429, 'Too Many Requests', 5000);
+      expect(error.code).toBe('RESPONSE_ERROR');
+      expect(error.retryAfterMs).toBe(5000);
     });
 
     it('should create MIDDLEWARE_ERROR error', () => {
@@ -1219,6 +1226,48 @@ describe('RequestInterceptor', () => {
         await expect(api.fetch('/error')).rejects.toThrow();
 
         expect(onError).toHaveBeenCalled();
+
+        api.destroy();
+      });
+
+      it('should attach retryAfterMs when the error response has a Retry-After header', async () => {
+        mockFetch.mockResolvedValueOnce(
+          new Response('Too Many Requests', {
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: { 'Retry-After': '4' },
+          })
+        );
+
+        const api = RequestInterceptor.create({
+          baseUrl: 'https://api.example.com',
+          throwOnError: true,
+        });
+
+        const error = await api.fetch('/limited').catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(RequestError);
+        expect((error as RequestError).code).toBe('RESPONSE_ERROR');
+        expect((error as RequestError).retryAfterMs).toBe(4000);
+
+        api.destroy();
+      });
+
+      it('should leave retryAfterMs undefined without a Retry-After header', async () => {
+        mockFetch.mockResolvedValueOnce(
+          new Response('Service Unavailable', {
+            status: 503,
+            statusText: 'Service Unavailable',
+          })
+        );
+
+        const api = RequestInterceptor.create({
+          baseUrl: 'https://api.example.com',
+          throwOnError: true,
+        });
+
+        const error = await api.fetch('/down').catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(RequestError);
+        expect((error as RequestError).retryAfterMs).toBeUndefined();
 
         api.destroy();
       });

@@ -16,7 +16,7 @@ package info, structure, and tooling details.
 
 ```text
 src/
-├── core/               # Core utilities (types, errors, validation, result, logger, debounce, throttle)
+├── core/               # Core utilities (types, errors, validation, result, logger, debounce, throttle, backoff)
 │   ├── errors/         # Error classes (BrowserUtilsError, ValidationError, etc.)
 │   ├── result/         # Result<T,E> type for explicit error handling
 │   ├── validation/     # Input validation utilities (incl. CacheValidator)
@@ -136,45 +136,45 @@ Module boundaries are enforced via `eslint-plugin-boundaries`:
 
 ## Current Modules (37)
 
-| Module       | Path                | Purpose                                                            |
-| ------------ | ------------------- | ------------------------------------------------------------------ |
-| core         | `src/core/`         | Types, errors, validation, Result, LoggerLike, debounce, throttle  |
-| a11y         | `src/a11y/`         | Accessibility (AriaUtils, LiveAnnouncer, ReducedMotion, SkipLink)  |
-| broadcast    | `src/broadcast/`    | BroadcastChannel cross-tab messaging                               |
-| cache        | `src/cache/`        | HTTP cache with stale-while-revalidate                             |
-| clipboard    | `src/clipboard/`    | Clipboard API with fallback                                        |
-| color        | `src/color/`        | Color parse/convert/validate/contrast/manipulate                   |
-| cookie       | `src/cookie/`       | Cookie management (Secure, SameSite)                               |
-| csp          | `src/csp/`          | CSP-aware security utilities                                       |
-| device       | `src/device/`       | Device/browser detection                                           |
-| download     | `src/download/`     | File download with validation                                      |
-| encryption   | `src/encryption/`   | AES-GCM encrypted storage (PBKDF2)                                 |
-| events       | `src/events/`       | Event delegation (re-exports debounce/throttle from core)          |
-| features     | `src/features/`     | Browser feature detection                                          |
-| focus        | `src/focus/`        | Focus trap, focusable elements                                     |
-| form         | `src/form/`         | Serialization, validation                                          |
-| fullscreen   | `src/fullscreen/`   | Fullscreen API wrapper                                             |
-| geolocation  | `src/geolocation/`  | Geolocation API wrapper                                            |
-| html         | `src/html/`         | HTML escaping, DOM helpers                                         |
-| idle         | `src/idle/`         | requestIdleCallback utilities                                      |
-| indexeddb    | `src/indexeddb/`    | IndexedDB wrapper (large data)                                     |
-| intl         | `src/intl/`         | Intl formatting (number/date/plural/collator) + locale negotiation |
-| keyboard     | `src/keyboard/`     | Keyboard shortcut manager                                          |
-| logging      | `src/logging/`      | Console logging with levels                                        |
-| media        | `src/media/`        | Media queries, breakpoints                                         |
-| network      | `src/network/`      | Network status, retry queue                                        |
-| notification | `src/notification/` | Browser notifications                                              |
-| observe      | `src/observe/`      | Intersection/Resize/Mutation                                       |
-| offline      | `src/offline/`      | Offline queue for data sync                                        |
-| performance  | `src/performance/`  | Performance measurement utilities                                  |
-| request      | `src/request/`      | Fetch/XHR interceptor with middleware                              |
-| sanitize     | `src/sanitize/`     | HTML sanitization                                                  |
-| scroll       | `src/scroll/`       | Scroll utilities                                                   |
-| session      | `src/session/`      | SessionStorage management                                          |
-| storage      | `src/storage/`      | LocalStorage with memory fallback                                  |
-| url          | `src/url/`          | URL builder, query params                                          |
-| visibility   | `src/visibility/`   | Page Visibility API wrapper                                        |
-| websocket    | `src/websocket/`    | WebSocket with auto-reconnect                                      |
+| Module       | Path                | Purpose                                                                    |
+| ------------ | ------------------- | -------------------------------------------------------------------------- |
+| core         | `src/core/`         | Types, errors, validation, Result, LoggerLike, debounce, throttle, backoff |
+| a11y         | `src/a11y/`         | Accessibility (AriaUtils, LiveAnnouncer, ReducedMotion, SkipLink)          |
+| broadcast    | `src/broadcast/`    | BroadcastChannel cross-tab messaging                                       |
+| cache        | `src/cache/`        | HTTP cache with stale-while-revalidate                                     |
+| clipboard    | `src/clipboard/`    | Clipboard API with fallback                                                |
+| color        | `src/color/`        | Color parse/convert/validate/contrast/manipulate                           |
+| cookie       | `src/cookie/`       | Cookie management (Secure, SameSite)                                       |
+| csp          | `src/csp/`          | CSP-aware security utilities                                               |
+| device       | `src/device/`       | Device/browser detection                                                   |
+| download     | `src/download/`     | File download with validation                                              |
+| encryption   | `src/encryption/`   | AES-GCM encrypted storage (PBKDF2)                                         |
+| events       | `src/events/`       | Event delegation (re-exports debounce/throttle from core)                  |
+| features     | `src/features/`     | Browser feature detection                                                  |
+| focus        | `src/focus/`        | Focus trap, focusable elements                                             |
+| form         | `src/form/`         | Serialization, validation                                                  |
+| fullscreen   | `src/fullscreen/`   | Fullscreen API wrapper                                                     |
+| geolocation  | `src/geolocation/`  | Geolocation API wrapper                                                    |
+| html         | `src/html/`         | HTML escaping, DOM helpers                                                 |
+| idle         | `src/idle/`         | requestIdleCallback utilities                                              |
+| indexeddb    | `src/indexeddb/`    | IndexedDB wrapper (large data)                                             |
+| intl         | `src/intl/`         | Intl formatting (number/date/plural/collator) + locale negotiation         |
+| keyboard     | `src/keyboard/`     | Keyboard shortcut manager                                                  |
+| logging      | `src/logging/`      | Console logging with levels                                                |
+| media        | `src/media/`        | Media queries, breakpoints                                                 |
+| network      | `src/network/`      | Network status, retry queue                                                |
+| notification | `src/notification/` | Browser notifications                                                      |
+| observe      | `src/observe/`      | Intersection/Resize/Mutation                                               |
+| offline      | `src/offline/`      | Offline queue for data sync                                                |
+| performance  | `src/performance/`  | Performance measurement utilities                                          |
+| request      | `src/request/`      | Fetch/XHR interceptor with middleware                                      |
+| sanitize     | `src/sanitize/`     | HTML sanitization                                                          |
+| scroll       | `src/scroll/`       | Scroll utilities                                                           |
+| session      | `src/session/`      | SessionStorage management                                                  |
+| storage      | `src/storage/`      | LocalStorage with memory fallback                                          |
+| url          | `src/url/`          | URL builder, query params                                                  |
+| visibility   | `src/visibility/`   | Page Visibility API wrapper                                                |
+| websocket    | `src/websocket/`    | WebSocket with auto-reconnect                                              |
 
 ## Planned Modules
 

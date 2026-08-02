@@ -41,24 +41,26 @@ const id = generateUUID(); // "550e8400-e29b-41d4-a716-446655440000"
 
 ## Exports
 
-| Export              | Type     | Description                            |
-| ------------------- | -------- | -------------------------------------- |
-| `Result`            | Object   | Result type constructors and utilities |
-| `BrowserUtilsError` | Class    | Abstract base error class              |
-| `ValidationError`   | Class    | Validation failure error               |
-| `StorageError`      | Class    | Storage operation error                |
-| `ClipboardError`    | Class    | Clipboard operation error              |
-| `NetworkError`      | Class    | Network operation error                |
-| `FullscreenError`   | Class    | Fullscreen API error                   |
-| `NotificationError` | Class    | Notification API error                 |
-| `CookieError`       | Class    | Cookie operation error                 |
-| `UrlError`          | Class    | URL validation/parsing error           |
-| `GeolocationError`  | Class    | Geolocation API error                  |
-| `EncryptionError`   | Class    | Encryption operation error             |
-| `CryptoError`       | Class    | Crypto API error                       |
-| `Validator`         | Object   | Unified validation facade              |
-| `generateUUID`      | Function | Secure UUID v4 generation              |
-| `CleanupFn`         | Type     | Cleanup function type                  |
+| Export                | Type     | Description                                |
+| --------------------- | -------- | ------------------------------------------ |
+| `Result`              | Object   | Result type constructors and utilities     |
+| `BrowserUtilsError`   | Class    | Abstract base error class                  |
+| `ValidationError`     | Class    | Validation failure error                   |
+| `StorageError`        | Class    | Storage operation error                    |
+| `ClipboardError`      | Class    | Clipboard operation error                  |
+| `NetworkError`        | Class    | Network operation error                    |
+| `FullscreenError`     | Class    | Fullscreen API error                       |
+| `NotificationError`   | Class    | Notification API error                     |
+| `CookieError`         | Class    | Cookie operation error                     |
+| `UrlError`            | Class    | URL validation/parsing error               |
+| `GeolocationError`    | Class    | Geolocation API error                      |
+| `EncryptionError`     | Class    | Encryption operation error                 |
+| `CryptoError`         | Class    | Crypto API error                           |
+| `Validator`           | Object   | Unified validation facade                  |
+| `generateUUID`        | Function | Secure UUID v4 generation                  |
+| `computeBackoffDelay` | Function | Retry delay computation (backoff + jitter) |
+| `BackoffStrategy`     | Type     | Backoff strategy type                      |
+| `CleanupFn`           | Type     | Cleanup function type                      |
 
 ---
 
