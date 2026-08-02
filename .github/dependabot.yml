@@ -7,6 +7,13 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    ignore:
+      # typescript-eslint rejects the TS 7.0 native port outright, and there is no
+      # stable typescript-eslint release supporting TS 7 yet (tracking:
+      # typescript-eslint#10940). Block the 7.0.x line so only 7.1.0 — expected to
+      # restore tooling support — reopens a PR.
+      - dependency-name: "typescript"
+        versions: ["7.0.x"]
     groups:
       dev-dependencies:
         dependency-type: "development"
