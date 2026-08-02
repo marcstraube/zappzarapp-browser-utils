@@ -514,6 +514,27 @@ describe('RequestInterceptor retry integration', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
+    it('should not retry aborts carrying a custom reason', async () => {
+      // AbortSignal.any() propagates custom abort reasons into fetch's
+      // rejection; classification must go by signal state, not error type
+      const controller = new AbortController();
+      const reason = new Error('user navigated away');
+      mockFetch.mockImplementationOnce(() => {
+        controller.abort(reason);
+        return Promise.reject(reason);
+      });
+      const api = RequestInterceptor.create({ retry: { maxRetries: 3, jitter: false } });
+
+      const guarded = api
+        .get(`${BASE_URL}/cancelled`, { signal: controller.signal })
+        .catch((e: unknown) => e);
+      const error = await guarded;
+
+      expect(error).toBeInstanceOf(RequestError);
+      expect((error as RequestError).code).toBe('ABORTED');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
     it('should abort with ABORTED when the signal fires during the retry wait', async () => {
       const controller = new AbortController();
       mockFetch.mockResolvedValueOnce(respond(503));

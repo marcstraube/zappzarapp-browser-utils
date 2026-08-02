@@ -193,31 +193,12 @@ export function validateCredentialOrigin(
 
 /**
  * Combine multiple AbortSignals into one.
- * When either signal fires, the combined signal aborts and
- * the listener on the other signal is removed to prevent leaks.
+ * Thin wrapper around `AbortSignal.any()`, kept as a stable public utility.
+ * The signal dependency is platform-managed, so combining does not
+ * accumulate listeners on long-lived source signals.
  */
 export function combineAbortSignals(signal1: AbortSignal, signal2: AbortSignal): AbortSignal {
-  const controller = new AbortController();
-
-  if (signal1.aborted || signal2.aborted) {
-    controller.abort();
-    return controller.signal;
-  }
-
-  const onAbort1 = (): void => {
-    controller.abort();
-    signal2.removeEventListener('abort', onAbort2);
-  };
-
-  const onAbort2 = (): void => {
-    controller.abort();
-    signal1.removeEventListener('abort', onAbort1);
-  };
-
-  signal1.addEventListener('abort', onAbort1, { once: true });
-  signal2.addEventListener('abort', onAbort2, { once: true });
-
-  return controller.signal;
+  return AbortSignal.any([signal1, signal2]);
 }
 
 /**

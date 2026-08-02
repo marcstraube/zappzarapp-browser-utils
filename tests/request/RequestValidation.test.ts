@@ -49,48 +49,29 @@ describe('combineAbortSignals', () => {
     expect(combined.aborted).toBe(true);
   });
 
-  it('should remove listener from signal2 when signal1 aborts', () => {
+  it('should delegate to AbortSignal.any so the platform manages the dependency', () => {
+    const anySpy = vi.spyOn(AbortSignal, 'any');
     const controller1 = new AbortController();
     const controller2 = new AbortController();
 
-    const removeSpy = vi.spyOn(controller2.signal, 'removeEventListener');
-
     combineAbortSignals(controller1.signal, controller2.signal);
 
-    controller1.abort();
+    expect(anySpy).toHaveBeenCalledWith([controller1.signal, controller2.signal]);
 
-    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function));
-
-    removeSpy.mockRestore();
+    anySpy.mockRestore();
   });
 
-  it('should remove listener from signal1 when signal2 aborts', () => {
+  it('should propagate the abort reason from the aborting signal', () => {
     const controller1 = new AbortController();
     const controller2 = new AbortController();
 
-    const removeSpy = vi.spyOn(controller1.signal, 'removeEventListener');
+    const combined = combineAbortSignals(controller1.signal, controller2.signal);
 
-    combineAbortSignals(controller1.signal, controller2.signal);
+    const reason = new Error('stop it');
+    controller1.abort(reason);
 
-    controller2.abort();
-
-    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function));
-
-    removeSpy.mockRestore();
-  });
-
-  it('should not add listeners when signal1 is pre-aborted', () => {
-    const controller1 = new AbortController();
-    controller1.abort();
-    const controller2 = new AbortController();
-
-    const addSpy = vi.spyOn(controller2.signal, 'addEventListener');
-
-    combineAbortSignals(controller1.signal, controller2.signal);
-
-    expect(addSpy).not.toHaveBeenCalled();
-
-    addSpy.mockRestore();
+    expect(combined.aborted).toBe(true);
+    expect(combined.reason).toBe(reason);
   });
 });
 

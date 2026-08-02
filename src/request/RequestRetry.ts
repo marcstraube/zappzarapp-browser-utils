@@ -221,35 +221,26 @@ export function waitRetryDelay(
   signals: readonly (AbortSignal | undefined)[]
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const active = signals.filter((signal): signal is AbortSignal => signal !== undefined);
+    const signal = AbortSignal.any(
+      signals.filter((candidate): candidate is AbortSignal => candidate !== undefined)
+    );
 
-    const abort = (): void => {
+    if (signal.aborted) {
       reject(new DOMException('Retry delay was aborted', 'AbortError'));
-    };
-
-    if (active.some((signal) => signal.aborted)) {
-      abort();
       return;
     }
 
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new DOMException('Retry delay was aborted', 'AbortError'));
+    };
+
     const timer = setTimeout(() => {
-      for (const signal of active) {
-        signal.removeEventListener('abort', onAbort);
-      }
+      signal.removeEventListener('abort', onAbort);
       resolve();
     }, ms);
 
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      for (const signal of active) {
-        signal.removeEventListener('abort', onAbort);
-      }
-      abort();
-    };
-
-    for (const signal of active) {
-      signal.addEventListener('abort', onAbort, { once: true });
-    }
+    signal.addEventListener('abort', onAbort, { once: true });
   });
 }
 
