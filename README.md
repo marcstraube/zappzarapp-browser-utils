@@ -162,12 +162,23 @@ import { RetryQueue } from '@zappzarapp/browser-utils/network';
 
 const queue = RetryQueue.create({
   maxRetries: 3,
-  backoffStrategy: 'exponential',
+  backoff: 'exponential',
   networkAware: true,
 });
 
-const result = await queue.add({
-  operation: () => fetch('/api/data').then((r) => r.json()),
+const result = await queue.add(() => fetch('/api/data').then((r) => r.json()));
+```
+
+### Automatic Request Retry
+
+```typescript
+import { RequestInterceptor } from '@zappzarapp/browser-utils/request';
+
+// Opt-in retry for idempotent requests with exponential backoff;
+// Retry-After response headers are honored (capped at maxDelay)
+const api = RequestInterceptor.create({
+  baseUrl: 'https://api.example.com',
+  retry: { maxRetries: 3 },
 });
 ```
 

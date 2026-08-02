@@ -55,6 +55,10 @@ export { noopLogger } from './logger.js';
 export { generateUUID, CryptoError } from './crypto.js';
 export type { CryptoErrorCode } from './crypto.js';
 
+// Backoff
+export { computeBackoffDelay } from './Backoff.js';
+export type { BackoffStrategy } from './Backoff.js';
+
 // Debounce & Throttle
 export { debounce } from './Debounce.js';
 export type { DebounceOptions, DebouncedFunction } from './Debounce.js';

@@ -1012,8 +1012,8 @@ describe('RetryQueue', () => {
 
         await vi.runAllTimersAsync();
 
-        // With jitter: delay * (0.5 + 0.5) = delay * 1.0 = 1000
-        expect(delays).toEqual([1000, 1000]);
+        // With equal jitter: delay * (0.5 + 0.5 * 0.5) = delay * 0.75 = 750
+        expect(delays).toEqual([750, 750]);
       });
 
       it('should produce delays in expected range with jitter', async () => {
@@ -1055,6 +1055,150 @@ describe('RetryQueue', () => {
 
         // With jitter and random=0: delay * 0.5 = 500
         expect(delays[0]).toBe(500);
+      });
+    });
+
+    describe('Retry-After hint', () => {
+      /**
+       * Collect retry delays passed to setTimeout.
+       */
+      function trackDelays(): number[] {
+        const delays: number[] = [];
+        const originalSetTimeout = globalThis.setTimeout;
+
+        vi.spyOn(globalThis, 'setTimeout').mockImplementation((fn, ms) => {
+          if (typeof ms === 'number' && ms > 0) {
+            delays.push(ms);
+          }
+          return originalSetTimeout(fn, ms) as unknown as ReturnType<typeof setTimeout>;
+        });
+
+        return delays;
+      }
+
+      it('should use retryAfterMs from the thrown error instead of backoff', async () => {
+        const delays = trackDelays();
+        const queue = RetryQueue.create({
+          maxRetries: 1,
+          baseDelay: 1000,
+          jitter: true,
+          networkAware: false,
+        });
+
+        let attempts = 0;
+        const promise = queue.add(async () => {
+          attempts++;
+          if (attempts === 1) {
+            throw Object.assign(new Error('Rate limited'), { retryAfterMs: 5000 });
+          }
+          return 'success';
+        });
+
+        await vi.runAllTimersAsync();
+
+        await expect(promise).resolves.toBe('success');
+        // Server-provided delay is used verbatim - no jitter applied
+        expect(delays).toEqual([5000]);
+      });
+
+      it('should cap retryAfterMs at maxDelay', async () => {
+        const delays = trackDelays();
+        const queue = RetryQueue.create({
+          maxRetries: 1,
+          baseDelay: 1000,
+          maxDelay: 30000,
+          jitter: false,
+          networkAware: false,
+        });
+
+        let attempts = 0;
+        const promise = queue.add(async () => {
+          attempts++;
+          if (attempts === 1) {
+            throw Object.assign(new Error('Rate limited'), { retryAfterMs: 90000 });
+          }
+          return 'success';
+        });
+
+        await vi.runAllTimersAsync();
+
+        await expect(promise).resolves.toBe('success');
+        expect(delays).toEqual([30000]);
+      });
+
+      it('should fall back to backoff for invalid retryAfterMs values', async () => {
+        const delays = trackDelays();
+        const queue = RetryQueue.create({
+          maxRetries: 4,
+          backoff: 'constant',
+          baseDelay: 1000,
+          jitter: false,
+          networkAware: false,
+        });
+
+        const invalidHints: unknown[] = [-1, Number.NaN, Number.POSITIVE_INFINITY, '5000'];
+        let attempts = 0;
+        const promise = queue.add(async () => {
+          const hint = invalidHints[attempts];
+          attempts++;
+          if (hint !== undefined) {
+            throw Object.assign(new Error('Fail'), { retryAfterMs: hint });
+          }
+          return 'success';
+        });
+
+        await vi.runAllTimersAsync();
+
+        await expect(promise).resolves.toBe('success');
+        expect(delays).toEqual([1000, 1000, 1000, 1000]);
+      });
+
+      it('should fall back to backoff for non-object errors', async () => {
+        const delays = trackDelays();
+        const queue = RetryQueue.create({
+          maxRetries: 1,
+          backoff: 'constant',
+          baseDelay: 1000,
+          jitter: false,
+          networkAware: false,
+        });
+
+        let attempts = 0;
+        const promise = queue.add(async () => {
+          attempts++;
+          if (attempts === 1) {
+            throw 'string error';
+          }
+          return 'success';
+        });
+
+        await vi.runAllTimersAsync();
+
+        await expect(promise).resolves.toBe('success');
+        expect(delays).toEqual([1000]);
+      });
+
+      it('should accept a zero retryAfterMs as immediate retry', async () => {
+        const queue = RetryQueue.create({
+          maxRetries: 1,
+          baseDelay: 60000,
+          jitter: false,
+          networkAware: false,
+        });
+
+        let attempts = 0;
+        const promise = queue.add(async () => {
+          attempts++;
+          if (attempts === 1) {
+            throw Object.assign(new Error('Retry now'), { retryAfterMs: 0 });
+          }
+          return 'success';
+        });
+
+        await vi.runAllTimersAsync();
+
+        await expect(promise).resolves.toBe('success');
+        expect(attempts).toBe(2);
       });
     });
   });

@@ -3,6 +3,7 @@
  *
  * Features:
  * - Exponential backoff
+ * - Honors `Retry-After` hints (`retryAfterMs` field on thrown errors)
  * - Network-aware (pauses when offline)
  * - Configurable retry limits
  * - Optional rate limiting (prevents reconnect storms)
@@ -32,6 +33,16 @@
  * console.log(queue.getStats());
  * ```
  *
+ * @example Honoring Retry-After
+ * ```TypeScript
+ * // When a failed operation throws an error carrying a numeric `retryAfterMs`
+ * // field (e.g. a RequestError from an interceptor with throwOnError that saw
+ * // a 429/503 Retry-After header), that delay replaces the computed backoff
+ * // for the next attempt. It is capped at `maxDelay` and applied without jitter.
+ * const queue = RetryQueue.create({ maxRetries: 3, maxDelay: 60000 });
+ * await queue.add(() => api.get('/rate-limited'));
+ * ```
+ *
  * @example With rate limiting
  * ```TypeScript
  * // Limit to 10 requests per 5 seconds to prevent reconnect storms
@@ -50,10 +61,15 @@
  * }
  * ```
  */
-import { NetworkError, type CleanupFn } from '../core/index.js';
+import {
+  NetworkError,
+  computeBackoffDelay,
+  type BackoffStrategy,
+  type CleanupFn,
+} from '../core/index.js';
 import { NetworkStatus } from './NetworkStatus.js';
 
-export type BackoffStrategy = 'linear' | 'exponential' | 'constant';
+export type { BackoffStrategy } from '../core/index.js';
 
 export type CircuitState = 'closed' | 'open' | 'half-open';
 
@@ -88,6 +104,7 @@ export interface RetryQueueOptions {
 
   /**
    * Maximum delay in milliseconds.
+   * Also caps `retryAfterMs` hints carried by thrown errors.
    * @default 30000
    */
   readonly maxDelay?: number;
@@ -449,7 +466,11 @@ export class RetryQueue {
         this.stats.retries++;
         this.emitRetry(item.attempts, error);
 
-        const delay = this.calculateDelay(item.attempts);
+        const retryAfterMs = this.extractRetryAfterMs(error);
+        const delay =
+          retryAfterMs !== null
+            ? Math.min(retryAfterMs, this.options.maxDelay)
+            : this.calculateDelay(item.attempts);
         await this.delay(delay);
       } else {
         // Max retries exceeded
@@ -514,30 +535,28 @@ export class RetryQueue {
   }
 
   private calculateDelay(attempt: number): number {
-    let delay: number;
+    return computeBackoffDelay(
+      this.options.backoff,
+      attempt,
+      this.options.baseDelay,
+      this.options.maxDelay,
+      this.options.jitter
+    );
+  }
 
-    switch (this.options.backoff) {
-      case 'constant':
-        delay = this.options.baseDelay;
-        break;
-      case 'linear':
-        delay = this.options.baseDelay * attempt;
-        break;
-      case 'exponential':
-      default:
-        delay = this.options.baseDelay * Math.pow(2, attempt - 1);
-        break;
+  /**
+   * Extract a `Retry-After` hint from a thrown error.
+   * Any error carrying a finite, non-negative numeric `retryAfterMs` field
+   * (e.g. RequestError from the request module) provides the hint.
+   */
+  private extractRetryAfterMs(error: unknown): number | null {
+    if (typeof error === 'object' && error !== null && 'retryAfterMs' in error) {
+      const value: unknown = error.retryAfterMs;
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return value;
+      }
     }
-
-    // Apply max delay cap
-    delay = Math.min(delay, this.options.maxDelay);
-
-    // Apply jitter using cryptographic randomness for security consistency
-    if (this.options.jitter) {
-      delay = delay * (0.5 + this.cryptoRandom());
-    }
-
-    return Math.floor(delay);
+    return null;
   }
 
   private delay(ms: number): Promise<void> {
@@ -560,16 +579,6 @@ export class RetryQueue {
         void this.processQueue();
       }
     });
-  }
-
-  /**
-   * Generate a cryptographically secure random number between 0 and 1.
-   * Uses crypto.getRandomValues() for security consistency.
-   */
-  private cryptoRandom(): number {
-    const buffer = new Uint32Array(1);
-    crypto.getRandomValues(buffer);
-    return buffer[0]! / 0xffffffff;
   }
 
   /**

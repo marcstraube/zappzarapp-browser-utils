@@ -5,6 +5,7 @@
  * - Fetch and XMLHttpRequest interception
  * - Request/response middleware chain
  * - Authentication header injection (Bearer tokens, API keys)
+ * - Automatic retry with backoff and Retry-After support (opt-in)
  * - Request logging and timing hooks
  * - Error handling middleware
  * - URL validation and security
@@ -53,6 +54,17 @@ import {
   emitTiming,
 } from './RequestMiddleware.js';
 import {
+  resolveRetryConfig,
+  eligibleRetryConfig,
+  retryDelayForResponse,
+  retryDelayForError,
+  waitRetryDelay,
+  discardResponseBody,
+  type RequestRetryConfig,
+  type ResolvedRetryConfig,
+} from './RequestRetry.js';
+import { parseRetryAfter } from './RetryAfter.js';
+import {
   validateUrl,
   validateCredentialOrigin,
   combineAbortSignals,
@@ -86,7 +98,13 @@ export class RequestError extends BrowserUtilsError {
   constructor(
     readonly code: RequestErrorCode,
     message: string,
-    cause?: unknown
+    cause?: unknown,
+    /**
+     * Parsed `Retry-After` hint in milliseconds.
+     * Present on RESPONSE_ERROR when the server sent the header.
+     * Consumers like RetryQueue use it to override their backoff delay.
+     */
+    readonly retryAfterMs?: number
   ) {
     super(message, cause);
   }
@@ -112,8 +130,13 @@ export class RequestError extends BrowserUtilsError {
     return new RequestError('REQUEST_FAILED', `Request to "${url}" failed`, cause);
   }
 
-  static responseError(status: number, statusText: string): RequestError {
-    return new RequestError('RESPONSE_ERROR', `Response error: ${status} ${statusText}`);
+  static responseError(status: number, statusText: string, retryAfterMs?: number): RequestError {
+    return new RequestError(
+      'RESPONSE_ERROR',
+      `Response error: ${status} ${statusText}`,
+      undefined,
+      retryAfterMs
+    );
   }
 
   static middlewareError(phase: string, cause?: unknown): RequestError {
@@ -332,6 +355,20 @@ export interface RequestInterceptorConfig {
    * Default: undefined (no validation).
    */
   readonly expectedContentType?: string | readonly string[];
+  /**
+   * Automatic retry for transient failures (opt-in).
+   *
+   * When set, network errors and responses with a retryable status code
+   * (default: 408, 429, 500, 502, 503, 504) are retried with backoff for
+   * retryable methods (default: idempotent methods only). A `Retry-After`
+   * response header overrides the computed backoff delay, capped at
+   * `retry.maxDelay`.
+   *
+   * Requests with a ReadableStream body are never retried (single-use).
+   *
+   * Default: undefined (no retries).
+   */
+  readonly retry?: RequestRetryConfig;
 }
 
 /**
@@ -398,12 +435,16 @@ export interface RequestInterceptorInstance {
 // =============================================================================
 
 const DEFAULT_CONFIG: Required<
-  Omit<RequestInterceptorConfig, 'auth' | 'baseUrl' | 'blockedPatterns' | 'expectedContentType'>
+  Omit<
+    RequestInterceptorConfig,
+    'auth' | 'baseUrl' | 'blockedPatterns' | 'expectedContentType' | 'retry'
+  >
 > & {
   auth: AuthConfig | null;
   baseUrl: string;
   blockedPatterns: readonly RegExp[];
   expectedContentType: string | readonly string[] | undefined;
+  retry: RequestRetryConfig | undefined;
 } = {
   baseUrl: '',
   timeout: 30000,
@@ -415,6 +456,7 @@ const DEFAULT_CONFIG: Required<
   validateCredentialOrigin: true,
   blockPrivateIPs: false,
   expectedContentType: undefined,
+  retry: undefined,
 } as const;
 
 /**
@@ -513,6 +555,22 @@ export const RequestInterceptor = {
    *   console.log(`${timing.method} ${timing.url}: ${timing.duration}ms`);
    * });
    * ```
+   *
+   * @example With automatic retry
+   * ```TypeScript
+   * // Retries idempotent requests on 408/429/500/502/503/504 and network
+   * // errors with exponential backoff, honoring Retry-After headers
+   * const api = RequestInterceptor.create({
+   *   baseUrl: 'https://api.example.com',
+   *   retry: { maxRetries: 3 },
+   * });
+   *
+   * // Opt POST in explicitly (may duplicate side effects)
+   * const submitApi = RequestInterceptor.create({
+   *   baseUrl: 'https://api.example.com',
+   *   retry: { maxRetries: 2, methods: ['GET', 'POST'] },
+   * });
+   * ```
    */
   create(config: RequestInterceptorConfig = {}): RequestInterceptorInstance {
     if (!RequestInterceptor.isSupported()) {
@@ -538,6 +596,10 @@ export const RequestInterceptor = {
         options.blockPrivateIPs
       );
     }
+
+    // Resolve and validate retry configuration once (opt-in)
+    const retryConfig: ResolvedRetryConfig | null =
+      options.retry !== undefined ? resolveRetryConfig(options.retry) : null;
 
     // State
     let currentAuth: AuthConfig | null = options.auth ?? null;
@@ -670,33 +732,78 @@ export const RequestInterceptor = {
       // Capture instance abort signal before any async work
       const instanceSignal = instanceAbortController.signal;
 
-      // Build and run request middleware
+      // Build and run request middleware (once - retries reuse the final config)
       let config = await buildRequestConfig(url, init);
       config = await runRequestMiddleware(config, middlewares);
-
-      // Setup abort controller and timeout
-      const abortController = new AbortController();
-      const timeoutId = createTimeout(config.timeout, abortController);
-
-      // Combine signals: per-request + instance-level + user-provided
-      let signal: AbortSignal = combineAbortSignals(instanceSignal, abortController.signal);
-      if (config.signal) {
-        signal = combineAbortSignals(config.signal, signal);
-      }
 
       const startTime = performance.now();
       const frozenConfig = freezeConfig(config);
 
-      try {
-        const response = await fetch(config.url, {
-          method: config.method,
-          headers: config.headers,
-          body: config.body,
-          signal,
-        });
+      // Finalize a failed request: emit timing, run error middleware, throw
+      const fail = async (error: RequestError): Promise<never> => {
+        const endTime = performance.now();
 
-        if (timeoutId !== null) clearTimeout(timeoutId);
+        emitTiming(
+          {
+            url: config.url,
+            method: config.method,
+            startTime,
+            endTime,
+            duration: endTime - startTime,
+            error: error.message,
+          },
+          timingHandlers
+        );
 
+        await runErrorMiddleware(error, frozenConfig, middlewares);
+        throw error;
+      };
+
+      // Wait out a retry delay; a user or instance abort ends the request
+      const waitBeforeRetry = async (ms: number): Promise<void> => {
+        try {
+          await waitRetryDelay(ms, [config.signal, instanceSignal]);
+        } catch {
+          await fail(RequestError.aborted(config.url));
+        }
+      };
+
+      // Combine long-lived signals (instance-level + user-provided) once per
+      // request, so retry attempts do not accumulate listeners on them
+      const baseSignal: AbortSignal = config.signal
+        ? combineAbortSignals(config.signal, instanceSignal)
+        : instanceSignal;
+
+      // Single fetch attempt with per-attempt timeout; failures are
+      // converted to RequestError
+      const performAttempt = async (): Promise<Response> => {
+        const abortController = new AbortController();
+        const timeoutId = createTimeout(config.timeout, abortController);
+
+        const signal = combineAbortSignals(baseSignal, abortController.signal);
+
+        try {
+          const response = await fetch(config.url, {
+            method: config.method,
+            headers: config.headers,
+            body: config.body,
+            signal,
+          });
+
+          if (timeoutId !== null) clearTimeout(timeoutId);
+
+          return response;
+        } catch (e) {
+          if (timeoutId !== null) clearTimeout(timeoutId);
+
+          const wasUserAborted = config.signal?.aborted === true || instanceSignal.aborted;
+          throw toRequestError(e, config.url, config.timeout ?? options.timeout, wasUserAborted);
+        }
+      };
+
+      // Finalize the accepted response: response middleware, Content-Type
+      // validation, timing, and throwOnError handling
+      const finalize = async (response: Response): Promise<Response> => {
         const endTime = performance.now();
         const duration = endTime - startTime;
 
@@ -729,40 +836,55 @@ export const RequestInterceptor = {
         );
 
         if (options.throwOnError && !response.ok) {
-          const error = RequestError.responseError(response.status, response.statusText);
+          const error = RequestError.responseError(
+            response.status,
+            response.statusText,
+            parseRetryAfter(interceptedResponse.headers.get('Retry-After')) ?? undefined
+          );
           await runErrorMiddleware(error, frozenConfig, middlewares);
           // noinspection ExceptionCaughtLocallyJS
           throw error;
         }
 
         return interceptedResponse.response;
-      } catch (e) {
-        if (timeoutId !== null) clearTimeout(timeoutId);
+      };
 
-        const endTime = performance.now();
-        const duration = endTime - startTime;
-        const wasUserAborted = config.signal?.aborted === true || instanceSignal.aborted;
-        const error = toRequestError(
-          e,
-          config.url,
-          config.timeout ?? options.timeout,
-          wasUserAborted
-        );
+      // Retry eligibility is fixed per request: opt-in config, retryable
+      // method, and a body that can be replayed (streams are single-use)
+      const retry = eligibleRetryConfig(retryConfig, config.method, config.body);
+      let attempt = 0;
+      let retryDelayMs: number | null = null;
 
-        emitTiming(
-          {
-            url: config.url,
-            method: config.method,
-            startTime,
-            endTime,
-            duration,
-            error: error.message,
-          },
-          timingHandlers
-        );
+      for (;;) {
+        if (retryDelayMs !== null) {
+          await waitBeforeRetry(retryDelayMs);
+          retryDelayMs = null;
+        }
 
-        await runErrorMiddleware(error, frozenConfig, middlewares);
-        throw error;
+        try {
+          const response = await performAttempt();
+
+          const delay = retryDelayForResponse(retry, attempt, response);
+          if (delay !== null) {
+            attempt++;
+            retryDelayMs = delay;
+            await discardResponseBody(response);
+            continue;
+          }
+
+          return await finalize(response);
+        } catch (e) {
+          const error = toRequestError(e, config.url, config.timeout ?? options.timeout, false);
+
+          const delay = retryDelayForError(retry, attempt, error);
+          if (delay !== null) {
+            attempt++;
+            retryDelayMs = delay;
+            continue;
+          }
+
+          return fail(error);
+        }
       }
     };
 
@@ -836,6 +958,7 @@ export const RequestInterceptor = {
           validateCredentialOrigin: options.validateCredentialOrigin,
           blockPrivateIPs: options.blockPrivateIPs,
           expectedContentType: options.expectedContentType,
+          retry: options.retry ? Object.freeze({ ...options.retry }) : undefined,
         });
       },
 
