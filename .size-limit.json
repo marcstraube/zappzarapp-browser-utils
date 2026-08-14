@@ -226,5 +226,11 @@
     "path": "dist/wakelock/index.js",
     "import": "*",
     "limit": "2 kB"
+  },
+  {
+    "name": "share",
+    "path": "dist/share/index.js",
+    "import": "*",
+    "limit": "3.5 kB"
   }
 ]

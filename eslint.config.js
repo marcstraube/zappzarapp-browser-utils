@@ -153,6 +153,11 @@ export default [
               from: { element: { type: 'module', captured: { family: 'session' } } },
               allow: [{ to: { element: { type: 'module', captured: { family: 'storage' } } } }],
             },
+            // share falls back to ClipboardManager when Web Share is unavailable
+            {
+              from: { element: { type: 'module', captured: { family: 'share' } } },
+              allow: [{ to: { element: { type: 'module', captured: { family: 'clipboard' } } } }],
+            },
             // offline integrates indexeddb persistence with network status
             {
               from: { element: { type: 'module', captured: { family: 'offline' } } },

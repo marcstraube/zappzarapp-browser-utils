@@ -11,7 +11,7 @@ tree-shakeable, and fully tested.
 
 ## Highlights
 
-- **All-in-one** — 37 browser modules in a single, tree-shakeable package
+- **All-in-one** — 39 browser modules in a single, tree-shakeable package
 - **Type-safe** — strict TypeScript with generics throughout
 - **Zero dependencies** — no runtime dependencies
 - **Secure by default** — cryptographic randomness, input validation, XSS
@@ -66,6 +66,7 @@ tree-shakeable, and fully tested.
 | request   | `RequestInterceptor`          | Fetch middleware, auth, progress      |
 | url       | `UrlBuilder`                  | URL building, query params            |
 | broadcast | `BroadcastManager`            | Cross-tab messaging                   |
+| share     | `ShareManager`                | Web Share API with clipboard fallback |
 
 ### Device & Environment
 
@@ -199,25 +200,26 @@ const cleanup = IntersectionObserverWrapper.lazyLoad(
 
 | Module                                      | Module                                        |
 | ------------------------------------------- | --------------------------------------------- |
-| [a11y](documentation/a11y.md)               | [indexeddb](documentation/indexeddb.md)       |
-| [broadcast](documentation/broadcast.md)     | [intl](documentation/intl.md)                 |
-| [cache](documentation/cache.md)             | [keyboard](documentation/keyboard.md)         |
-| [clipboard](documentation/clipboard.md)     | [logging](documentation/logging.md)           |
-| [color](documentation/color.md)             | [media](documentation/media.md)               |
-| [cookie](documentation/cookie.md)           | [network](documentation/network.md)           |
-| [core](documentation/core.md)               | [notification](documentation/notification.md) |
-| [csp](documentation/csp.md)                 | [observe](documentation/observe.md)           |
-| [device](documentation/device.md)           | [offline](documentation/offline.md)           |
-| [download](documentation/download.md)       | [performance](documentation/performance.md)   |
-| [encryption](documentation/encryption.md)   | [request](documentation/request.md)           |
-| [events](documentation/events.md)           | [sanitize](documentation/sanitize.md)         |
-| [features](documentation/features.md)       | [scroll](documentation/scroll.md)             |
-| [focus](documentation/focus.md)             | [session](documentation/session.md)           |
+| [a11y](documentation/a11y.md)               | [intl](documentation/intl.md)                 |
+| [broadcast](documentation/broadcast.md)     | [keyboard](documentation/keyboard.md)         |
+| [cache](documentation/cache.md)             | [logging](documentation/logging.md)           |
+| [clipboard](documentation/clipboard.md)     | [media](documentation/media.md)               |
+| [color](documentation/color.md)             | [network](documentation/network.md)           |
+| [cookie](documentation/cookie.md)           | [notification](documentation/notification.md) |
+| [core](documentation/core.md)               | [observe](documentation/observe.md)           |
+| [csp](documentation/csp.md)                 | [offline](documentation/offline.md)           |
+| [device](documentation/device.md)           | [performance](documentation/performance.md)   |
+| [download](documentation/download.md)       | [request](documentation/request.md)           |
+| [encryption](documentation/encryption.md)   | [sanitize](documentation/sanitize.md)         |
+| [events](documentation/events.md)           | [scroll](documentation/scroll.md)             |
+| [features](documentation/features.md)       | [session](documentation/session.md)           |
+| [focus](documentation/focus.md)             | [share](documentation/share.md)               |
 | [form](documentation/form.md)               | [storage](documentation/storage.md)           |
 | [fullscreen](documentation/fullscreen.md)   | [url](documentation/url.md)                   |
 | [geolocation](documentation/geolocation.md) | [visibility](documentation/visibility.md)     |
 | [html](documentation/html.md)               | [websocket](documentation/websocket.md)       |
 | [idle](documentation/idle.md)               | [glossary](documentation/glossary.md)         |
+| [indexeddb](documentation/indexeddb.md)     |                                               |
 
 **Recipes:** [Offline-First App](documentation/recipes/offline-first-app.md) ·
 [Secure File Upload](documentation/recipes/secure-file-upload.md) ·

@@ -157,6 +157,10 @@
       "types": "./dist/wakelock/index.d.ts",
       "import": "./dist/wakelock/index.js"
     },
+    "./share": {
+      "types": "./dist/share/index.d.ts",
+      "import": "./dist/share/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

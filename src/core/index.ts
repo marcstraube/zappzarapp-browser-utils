@@ -18,6 +18,7 @@ export {
   ColorError,
   IntlError,
   WakeLockError,
+  ShareError,
 } from './errors/index.js';
 export type {
   StorageErrorCode,
@@ -36,6 +37,7 @@ export type {
   ColorErrorCode,
   IntlErrorCode,
   WakeLockErrorCode,
+  ShareErrorCode,
 } from './errors/index.js';
 
 // Result Type

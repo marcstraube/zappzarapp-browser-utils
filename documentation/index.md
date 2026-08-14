@@ -39,6 +39,7 @@ security-first design.
 | [sanitize](sanitize.md)         | HTML sanitization with DOMPurify integration              |
 | [scroll](scroll.md)             | Scroll utilities and smooth scrolling                     |
 | [session](session.md)           | Type-safe sessionStorage management                       |
+| [share](share.md)               | Web Share API with clipboard fallback                     |
 | [storage](storage.md)           | Type-safe localStorage with LRU eviction and namespacing  |
 | [url](url.md)                   | URL building, query params, and history management        |
 | [visibility](visibility.md)     | Page Visibility API wrapper for tab visibility detection  |
