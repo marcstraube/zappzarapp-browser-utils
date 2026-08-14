@@ -3,293 +3,148 @@
 This document describes the module structure and dependency rules for
 `@zappzarapp/browser-utils`.
 
+The machine-checked source of truth for these rules is the
+`eslint-plugin-boundaries` configuration in `eslint.config.js` — every
+dependency edge described here is enforced by `pnpm run lint`. When the rules
+change, update this document alongside the config.
+
 ## Table of Contents
 
 - [Layer Overview](#layer-overview)
 - [Dependency Graph](#dependency-graph)
 - [Import Rules](#import-rules)
+- [Cross-Module Exceptions](#cross-module-exceptions)
 - [Module Categories](#module-categories)
 - [Zero Circular Dependencies](#zero-circular-dependencies)
+- [Module Count Summary](#module-count-summary)
 
 ---
 
 ## Layer Overview
 
-The codebase follows a three-layer architecture:
+The codebase follows a two-layer architecture. There is no aggregating entry
+point: the package is **subpath-exports only** (one entry per module in
+`package.json`), so consumers import exactly the modules they use and
+tree-shaking works at the package level.
 
 ```text
-+----------------------------------------------------------+
-|                     Public API Layer                      |
-|                      (src/index.ts)                       |
-|              Re-exports from all domain modules           |
-+----------------------------------------------------------+
-                              |
-                              v
+        @zappzarapp/browser-utils/<module>  (subpath exports)
+                            |
+                            v
 +----------------------------------------------------------+
 |                      Domain Layer                         |
-|        (29 independent modules with focused concerns)     |
-|   storage, session, cookie, clipboard, url, a11y, ...     |
+|        (38 independent modules with focused concerns)     |
+|   storage, request, form, websocket, share, wakelock, ... |
 +----------------------------------------------------------+
-                              |
-                              v
+                            |
+                            v
 +----------------------------------------------------------+
 |                       Core Layer                          |
 |                (Foundation utilities)                     |
-|      errors | result | validation | types                 |
+|  types | errors | result | validation | logger | crypto   |
+|            debounce | throttle | backoff                  |
 +----------------------------------------------------------+
 ```
 
 ### Layer Responsibilities
 
-| Layer      | Purpose                             | Imports From   |
-| ---------- | ----------------------------------- | -------------- |
-| Public API | Unified entry point, barrel exports | Domain, Core   |
-| Domain     | Feature implementations             | Core only\*    |
-| Core       | Types, errors, validation, Result   | Nothing (leaf) |
-
-\*No cross-domain exceptions. `storage` uses `LoggerLike` from `core`, and
-`scroll` uses `debounce`/`throttle` from `core`.
+| Layer  | Purpose                                    | Imports From                 |
+| ------ | ------------------------------------------ | ---------------------------- |
+| Domain | Feature implementations                    | Core, itself (+3 exceptions) |
+| Core   | Types, errors, Result, validation, helpers | Only itself (leaf)           |
 
 ---
 
 ## Dependency Graph
 
+Every domain module depends on core; a group edge below stands for all of its
+members. The three module-to-module exceptions are drawn explicitly.
+
 ```mermaid
 graph TD
-    subgraph Core["Core Layer (Foundation)"]
-        types["types"]
-        errors["errors"]
-        result["result"]
-        validation["validation"]
-    end
-
-    subgraph Domain["Domain Layer (Features)"]
-        subgraph Storage["Storage Modules"]
+    subgraph Domain["Domain Layer (38 modules)"]
+        subgraph StorageData["Storage & Data"]
             storage["storage"]
             session["session"]
             cookie["cookie"]
             indexeddb["indexeddb"]
+            cache["cache"]
+            encryption["encryption"]
         end
 
-        subgraph Communication["Communication Modules"]
-            clipboard["clipboard"]
-            broadcast["broadcast"]
-            websocket["websocket"]
-            notification["notification"]
+        subgraph NetworkComm["Network & Communication"]
             network["network"]
-        end
-
-        subgraph URL["URL & Navigation"]
+            offline["offline"]
+            websocket["websocket"]
+            request["request"]
             url["url"]
+            broadcast["broadcast"]
+            share["share"]
         end
 
-        subgraph Events["Event Handling"]
-            events["events"]
-            keyboard["keyboard"]
-            focus["focus"]
-        end
-
-        subgraph DOM["DOM Utilities"]
+        subgraph DomUi["DOM & UI"]
             html["html"]
-            sanitize["sanitize"]
-            form["form"]
+            focus["focus"]
             scroll["scroll"]
             fullscreen["fullscreen"]
+            form["form"]
         end
 
-        subgraph Observers["Observer Patterns"]
-            observe["observe"]
+        subgraph EventsInput["Events & Input"]
+            events["events"]
+            keyboard["keyboard"]
             idle["idle"]
-            visibility["visibility"]
         end
 
-        subgraph Device["Device & System"]
+        subgraph Observers["Observers"]
+            observe["observe"]
+        end
+
+        subgraph DeviceEnv["Device & Environment"]
             device["device"]
             features["features"]
             media["media"]
-            performance["performance"]
+            visibility["visibility"]
             geolocation["geolocation"]
+            performance["performance"]
+            wakelock["wakelock"]
         end
 
         subgraph Security["Security"]
             csp["csp"]
+            sanitize["sanitize"]
+            clipboard["clipboard"]
         end
 
-        subgraph Diagnostics["Diagnostics"]
+        subgraph Utility["Utility"]
+            color["color"]
+            intl["intl"]
             logging["logging"]
+            notification["notification"]
             download["download"]
-        end
-
-        subgraph Accessibility["Accessibility"]
             a11y["a11y"]
         end
     end
 
-    subgraph PublicAPI["Public API Layer"]
-        index["index.ts"]
+    subgraph Core["Core Layer"]
+        core["types | errors | result | validation<br/>logger | crypto | debounce | throttle | backoff"]
     end
 
-    %% Core internal dependencies
-    errors --> types
-    result --> types
-    validation --> types
+    %% Every group depends on core
+    StorageData --> Core
+    NetworkComm --> Core
+    DomUi --> Core
+    EventsInput --> Core
+    Observers --> Core
+    DeviceEnv --> Core
+    Security --> Core
+    Utility --> Core
 
-    %% Domain to Core dependencies
-    storage --> errors
-    storage --> result
-    storage --> validation
-    storage --> types
-
-    session --> errors
-
-    cookie --> errors
-    cookie --> result
-    cookie --> validation
-
-    indexeddb --> errors
-    indexeddb --> result
-    indexeddb --> types
-
-    clipboard --> errors
-    clipboard --> result
-    clipboard --> validation
-
-    broadcast --> errors
-    broadcast --> types
-
-    websocket --> errors
-    websocket --> types
-
-    notification --> errors
-    notification --> result
-    notification --> types
-
-    network --> errors
-    network --> types
-
-    url --> errors
-    url --> result
-    url --> validation
-    url --> types
-
-    events --> types
-
-    keyboard --> types
-
-    focus --> types
-
-    html
-
-    sanitize --> types
-
-    form --> types
-
-    scroll --> types
-    scroll --> types
-
-    fullscreen --> errors
-    fullscreen --> result
-    fullscreen --> types
-
-    observe --> types
-
-    idle --> types
-
-    visibility --> types
-
-    device --> types
-
-    features
-
-    media --> types
-
-    performance --> types
-
-    geolocation --> errors
-    geolocation --> result
-    geolocation --> types
-
-    csp
-
-    logging
-
-    download --> validation
-
-    a11y --> errors
-    a11y --> types
-
-    %% Public API aggregates all
-    index --> storage
-    index --> session
-    index --> cookie
-    index --> indexeddb
-    index --> clipboard
-    index --> broadcast
-    index --> websocket
-    index --> notification
-    index --> network
-    index --> url
-    index --> events
-    index --> keyboard
-    index --> focus
-    index --> html
-    index --> sanitize
-    index --> form
-    index --> scroll
-    index --> fullscreen
-    index --> observe
-    index --> idle
-    index --> visibility
-    index --> device
-    index --> features
-    index --> media
-    index --> performance
-    index --> geolocation
-    index --> csp
-    index --> logging
-    index --> download
-    index --> a11y
-    index --> errors
-    index --> result
-    index --> validation
-    index --> types
-```
-
-### Simplified View
-
-```mermaid
-graph LR
-    subgraph Core
-        C[errors/result/validation/types]
-    end
-
-    subgraph Domain
-        D1[storage group]
-        D2[communication group]
-        D3[dom group]
-        D4[device group]
-        D5[events group]
-        D6[accessibility group]
-    end
-
-    subgraph API
-        I[index.ts]
-    end
-
-    D1 --> C
-    D2 --> C
-    D3 --> C
-    D4 --> C
-    D5 --> C
-    D6 --> C
-
-    I --> D1
-    I --> D2
-    I --> D3
-    I --> D4
-    I --> D5
-    I --> D6
-    I --> C
+    %% Cross-module exceptions (see below)
+    session -. "extends BaseStorageManager" .-> storage
+    offline -. "persistence" .-> indexeddb
+    offline -. "connectivity" .-> network
+    share -. "clipboard fallback" .-> clipboard
 ```
 
 ---
@@ -299,168 +154,150 @@ graph LR
 ### Core Layer
 
 ```typescript
-// ALLOWED: Core modules have no external dependencies
-import type { CleanupFn } from './types';
+// ALLOWED: Core modules only import from core itself
+import type { CleanupFn } from './types.js';
 
 // NOT ALLOWED: Never import from domain modules
-// import { Logger } from '../logging';  // FORBIDDEN
+// import { Logger } from '../logging/index.js';  // FORBIDDEN
 ```
 
 ### Domain Layer
 
 ```typescript
 // ALLOWED: Import from core
-import { Result, ValidationError, Validator } from '../core';
-import type { CleanupFn } from '../core/types';
+import { Result, ValidationError, Validator } from '../core/index.js';
 
-// ALLOWED: Import from same module (internal)
-import { StorageConfig } from './StorageConfig';
+// ALLOWED: Import from the same module (internal)
+import { StorageConfig } from './StorageConfig.js';
 
-// NOT ALLOWED: Cross-domain imports
-// import { Logger } from '../logging';  // FORBIDDEN
-// import { debounce } from '../events';  // FORBIDDEN (use core)
-
-// NOT ALLOWED: Import from public API
-// import { StorageManager } from '../index';  // FORBIDDEN
-```
-
-### Public API Layer
-
-```typescript
-// ALLOWED: Re-export from any module
-export { StorageManager } from './storage/index.js';
-export { Logger } from './logging/index.js';
-export type { CleanupFn } from './core/types.js';
-
-// NOT ALLOWED: Implementation code
-// const x = new StorageManager();  // FORBIDDEN in index.ts
+// NOT ALLOWED: Cross-domain imports (except the three documented ones)
+// import { Logger } from '../logging/index.js';   // FORBIDDEN
+// import { debounce } from '../events/index.js';  // FORBIDDEN (use core)
 ```
 
 ### Import Summary
 
-| From / To  | Core | Domain | Public API |
-| ---------- | ---- | ------ | ---------- |
-| Core       | Yes  | No     | No         |
-| Domain     | Yes  | No     | No         |
-| Public API | Yes  | Yes    | -          |
+| From / To | Core | Domain                            |
+| --------- | ---- | --------------------------------- |
+| Core      | Yes  | No                                |
+| Domain    | Yes  | Only itself (+3 excl. exceptions) |
+
+---
+
+## Cross-Module Exceptions
+
+Three module-to-module dependencies are deliberately allowed. Each is a
+documented policy in `eslint.config.js`; anything else is a lint error.
+
+| From    | To                 | Why                                                                                         |
+| ------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| session | storage            | `SessionStorageManager` extends `BaseStorageManager`; both back different Web Storage areas |
+| offline | indexeddb, network | Integration module: persists the queue in IndexedDB and reacts to connectivity changes      |
+| share   | clipboard          | The Web Share clipboard fallback reuses `ClipboardManager.writeText` (validation included)  |
+
+Adding a new exception requires a new policy in `eslint.config.js` plus a row in
+this table — prefer extracting shared code to core or dependency injection (see
+[Resolution Pattern](#resolution-pattern)) first.
 
 ---
 
 ## Module Categories
 
-### Core Layer (7 submodules)
+The grouping mirrors the module tables in the README.
 
-Foundation utilities that all domain modules depend on.
+### Core Layer (9 submodules)
 
-| Module     | Path                   | Purpose                                 |
+Foundation utilities that all domain modules may depend on.
+
+| Submodule  | Path                   | Purpose                                 |
 | ---------- | ---------------------- | --------------------------------------- |
 | types      | `src/core/types.ts`    | Shared type definitions (CleanupFn)     |
 | errors     | `src/core/errors/`     | Error class hierarchy                   |
 | result     | `src/core/result/`     | Result<T,E> for explicit error handling |
 | validation | `src/core/validation/` | Input validation utilities              |
 | logger     | `src/core/logger.ts`   | LoggerLike interface, noopLogger        |
+| crypto     | `src/core/crypto.ts`   | Cryptographic randomness helpers        |
 | debounce   | `src/core/Debounce.ts` | Debounce utility (pure function)        |
 | throttle   | `src/core/Throttle.ts` | Throttle utility (pure function)        |
+| backoff    | `src/core/Backoff.ts`  | Backoff delay computation (retry logic) |
 
-### Storage Group (4 modules)
+### Storage & Data (6 modules)
 
-Data persistence across different storage mechanisms.
+| Module     | Path              | Purpose                            | Dependencies  |
+| ---------- | ----------------- | ---------------------------------- | ------------- |
+| storage    | `src/storage/`    | localStorage with LRU eviction     | core          |
+| session    | `src/session/`    | sessionStorage management          | core, storage |
+| cookie     | `src/cookie/`     | Cookie management, secure defaults | core          |
+| indexeddb  | `src/indexeddb/`  | IndexedDB wrapper for large data   | core          |
+| cache      | `src/cache/`      | HTTP cache, stale-while-revalidate | core          |
+| encryption | `src/encryption/` | AES-GCM encrypted storage (PBKDF2) | core          |
 
-| Module    | Path             | Purpose                            | Dependencies |
-| --------- | ---------------- | ---------------------------------- | ------------ |
-| storage   | `src/storage/`   | localStorage with LRU eviction     | core         |
-| session   | `src/session/`   | sessionStorage management          | core         |
-| cookie    | `src/cookie/`    | Cookie management, secure defaults | core         |
-| indexeddb | `src/indexeddb/` | IndexedDB wrapper for large data   | core         |
+### Network & Communication (7 modules)
 
-### Communication Group (5 modules)
+| Module    | Path             | Purpose                                            | Dependencies             |
+| --------- | ---------------- | -------------------------------------------------- | ------------------------ |
+| network   | `src/network/`   | Network status, retry queue                        | core                     |
+| offline   | `src/offline/`   | Offline queue for data sync                        | core, indexeddb, network |
+| websocket | `src/websocket/` | WebSocket with auto-reconnect                      | core                     |
+| request   | `src/request/`   | Fetch interceptor: middleware, auth, retry, dedupe | core                     |
+| url       | `src/url/`       | URL builder, query params, history                 | core                     |
+| broadcast | `src/broadcast/` | BroadcastChannel cross-tab messaging               | core                     |
+| share     | `src/share/`     | Web Share API with clipboard fallback              | core, clipboard          |
 
-APIs for communication and data transfer.
-
-| Module       | Path                | Purpose                       | Dependencies |
-| ------------ | ------------------- | ----------------------------- | ------------ |
-| clipboard    | `src/clipboard/`    | Clipboard API with fallback   | core         |
-| broadcast    | `src/broadcast/`    | BroadcastChannel API wrapper  | core         |
-| websocket    | `src/websocket/`    | WebSocket with auto-reconnect | core         |
-| notification | `src/notification/` | Browser notification API      | core         |
-| network      | `src/network/`      | Network status, retry queue   | core         |
-
-### URL & Navigation (1 module)
-
-URL manipulation and browser history.
-
-| Module | Path       | Purpose                            | Dependencies |
-| ------ | ---------- | ---------------------------------- | ------------ |
-| url    | `src/url/` | URL builder, query params, history | core         |
-
-### Event Handling Group (3 modules)
-
-Event processing and user interaction.
-
-| Module   | Path            | Purpose                                                   | Dependencies |
-| -------- | --------------- | --------------------------------------------------------- | ------------ |
-| events   | `src/events/`   | event delegation (re-exports debounce/throttle from core) | core         |
-| keyboard | `src/keyboard/` | Keyboard shortcut manager                                 | core         |
-| focus    | `src/focus/`    | Focus trap, focusable elements                            | core         |
-
-### DOM Utilities Group (5 modules)
-
-DOM manipulation and visual effects.
+### DOM & UI (5 modules)
 
 | Module     | Path              | Purpose                        | Dependencies |
 | ---------- | ----------------- | ------------------------------ | ------------ |
-| html       | `src/html/`       | HTML escaping, DOM helpers     | none         |
-| sanitize   | `src/sanitize/`   | HTML sanitization              | core         |
-| form       | `src/form/`       | Form serialization, validation | core         |
-| scroll     | `src/scroll/`     | Scroll utilities               | core         |
+| html       | `src/html/`       | HTML escaping, DOM helpers     | core         |
+| focus      | `src/focus/`      | Focus trap, focusable elements | core         |
+| scroll     | `src/scroll/`     | Scroll utilities and locking   | core         |
 | fullscreen | `src/fullscreen/` | Fullscreen API wrapper         | core         |
+| form       | `src/form/`       | Form serialization, validation | core         |
 
-### Observer Patterns Group (3 modules)
+### Events & Input (3 modules)
 
-Browser observer APIs.
+| Module   | Path            | Purpose                                                   | Dependencies |
+| -------- | --------------- | --------------------------------------------------------- | ------------ |
+| events   | `src/events/`   | Event delegation (re-exports debounce/throttle from core) | core         |
+| keyboard | `src/keyboard/` | Keyboard shortcut manager                                 | core         |
+| idle     | `src/idle/`     | requestIdleCallback utilities                             | core         |
 
-| Module     | Path              | Purpose                                | Dependencies |
-| ---------- | ----------------- | -------------------------------------- | ------------ |
-| observe    | `src/observe/`    | Intersection/Resize/Mutation observers | core         |
-| idle       | `src/idle/`       | requestIdleCallback utilities          | core         |
-| visibility | `src/visibility/` | Page visibility API                    | core         |
+### Observers (1 module)
 
-### Device & System Group (6 modules)
+| Module  | Path           | Purpose                                | Dependencies |
+| ------- | -------------- | -------------------------------------- | ------------ |
+| observe | `src/observe/` | Intersection/Resize/Mutation observers | core         |
 
-Device capabilities and system information.
+### Device & Environment (7 modules)
 
-| Module      | Path               | Purpose                    | Dependencies |
-| ----------- | ------------------ | -------------------------- | ------------ |
-| device      | `src/device/`      | Device/browser detection   | core         |
-| features    | `src/features/`    | Browser feature detection  | none         |
-| media       | `src/media/`       | Media queries, breakpoints | core         |
-| performance | `src/performance/` | Performance monitoring     | core         |
-| geolocation | `src/geolocation/` | Geolocation API wrapper    | core         |
+| Module      | Path               | Purpose                     | Dependencies |
+| ----------- | ------------------ | --------------------------- | ------------ |
+| device      | `src/device/`      | Device/browser detection    | core         |
+| features    | `src/features/`    | Browser feature detection   | core         |
+| media       | `src/media/`       | Media queries, breakpoints  | core         |
+| visibility  | `src/visibility/`  | Page Visibility API wrapper | core         |
+| geolocation | `src/geolocation/` | Geolocation API wrapper     | core         |
+| performance | `src/performance/` | Core Web Vitals monitoring  | core         |
+| wakelock    | `src/wakelock/`    | Screen Wake Lock API        | core         |
 
-### Security Group (1 module)
+### Security (3 modules)
 
-Security-related utilities.
+| Module    | Path             | Purpose                      | Dependencies |
+| --------- | ---------------- | ---------------------------- | ------------ |
+| csp       | `src/csp/`       | CSP-aware security utilities | core         |
+| sanitize  | `src/sanitize/`  | HTML sanitization            | core         |
+| clipboard | `src/clipboard/` | Clipboard API with fallback  | core         |
 
-| Module | Path       | Purpose                      | Dependencies |
-| ------ | ---------- | ---------------------------- | ------------ |
-| csp    | `src/csp/` | CSP-aware security utilities | none         |
+### Utility (6 modules)
 
-### Diagnostics Group (2 modules)
-
-Logging and file operations.
-
-| Module   | Path            | Purpose                     | Dependencies |
-| -------- | --------------- | --------------------------- | ------------ |
-| logging  | `src/logging/`  | Console logging with levels | none         |
-| download | `src/download/` | File download utilities     | core         |
-
-### Accessibility Group (1 module)
-
-Accessibility utilities for ARIA management and user preferences.
-
-| Module | Path        | Purpose                                           | Dependencies |
-| ------ | ----------- | ------------------------------------------------- | ------------ |
-| a11y   | `src/a11y/` | AriaUtils, LiveAnnouncer, ReducedMotion, SkipLink | core         |
+| Module       | Path                | Purpose                              | Dependencies |
+| ------------ | ------------------- | ------------------------------------ | ------------ |
+| color        | `src/color/`        | Color parse/convert/contrast         | core         |
+| intl         | `src/intl/`         | Intl formatting + locale negotiation | core         |
+| logging      | `src/logging/`      | Console logging with levels          | core         |
+| notification | `src/notification/` | Browser notification API             | core         |
+| download     | `src/download/`     | File download with validation        | core         |
+| a11y         | `src/a11y/`         | Accessibility utilities              | core         |
 
 ---
 
@@ -471,13 +308,18 @@ constraints:
 
 ### Enforcement Mechanisms
 
-1. **TypeScript Build**: Circular dependencies cause compilation failures
-2. **Layer Rules**: Dependencies only flow downward (Domain -> Core)
-3. **Code Review**: Imports are verified during review
+1. **eslint-plugin-boundaries**: the layer rules and the three exceptions are
+   policies in `eslint.config.js`; any other cross-module import fails
+   `pnpm run lint`
+2. **TypeScript build**: circular dependencies cause compilation failures
+3. **Layer rules**: dependencies only flow downward (Domain -> Core)
 
 ### Verification
 
 ```bash
+# Boundary rules (source of truth)
+pnpm run lint
+
 # TypeScript build catches circular dependencies
 pnpm run build
 
@@ -498,33 +340,34 @@ npx madge --circular src/
 If you need functionality from another domain module:
 
 ```typescript
-// WRONG: Direct cross-domain import creating cycle
-import { Logger } from '../logging'; // in storage module
+// WRONG: Direct cross-domain import creating coupling
+import { Logger } from '../logging/index.js'; // in storage module
 
 // RIGHT: Accept as parameter (dependency injection)
 interface StorageOptions {
-  logger?: (msg: string) => void;
+  logger?: LoggerLike; // LoggerLike lives in core
 }
 
 // RIGHT: Extract shared code to core
-// Move common functionality to core/shared
+// (debounce/throttle and backoff moved to core for this reason)
 ```
+
+Only when neither works is a boundary exception justified — see
+[Cross-Module Exceptions](#cross-module-exceptions).
 
 ---
 
 ## Module Count Summary
 
-| Category         | Count  | Modules                                                |
-| ---------------- | ------ | ------------------------------------------------------ |
-| Core             | 4      | types, errors, result, validation                      |
-| Storage          | 4      | storage, session, cookie, indexeddb                    |
-| Communication    | 5      | clipboard, broadcast, websocket, notification, network |
-| URL & Navigation | 1      | url                                                    |
-| Event Handling   | 3      | events, keyboard, focus                                |
-| DOM Utilities    | 5      | html, sanitize, form, scroll, fullscreen               |
-| Observers        | 3      | observe, idle, visibility                              |
-| Device & System  | 5      | device, features, media, performance, geolocation      |
-| Security         | 1      | csp                                                    |
-| Diagnostics      | 2      | logging, download                                      |
-| Accessibility    | 1      | a11y                                                   |
-| **Total**        | **33** | (including 4 core submodules)                          |
+| Category                | Count            | Modules                                                                        |
+| ----------------------- | ---------------- | ------------------------------------------------------------------------------ |
+| Core                    | 1 (9 submodules) | types, errors, result, validation, logger, crypto, debounce, throttle, backoff |
+| Storage & Data          | 6                | storage, session, cookie, indexeddb, cache, encryption                         |
+| Network & Communication | 7                | network, offline, websocket, request, url, broadcast, share                    |
+| DOM & UI                | 5                | html, focus, scroll, fullscreen, form                                          |
+| Events & Input          | 3                | events, keyboard, idle                                                         |
+| Observers               | 1                | observe                                                                        |
+| Device & Environment    | 7                | device, features, media, visibility, geolocation, performance, wakelock        |
+| Security                | 3                | csp, sanitize, clipboard                                                       |
+| Utility                 | 6                | color, intl, logging, notification, download, a11y                             |
+| **Total**               | **39**           | 38 domain modules + core                                                       |
