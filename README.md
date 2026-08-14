@@ -78,6 +78,7 @@ tree-shakeable, and fully tested.
 | visibility  | `VisibilityManager`  | Page Visibility API        |
 | geolocation | `GeolocationManager` | Geolocation API wrapper    |
 | performance | `PerformanceMonitor` | Core Web Vitals monitoring |
+| wakelock    | `WakeLock`           | Screen Wake Lock API       |
 
 ### Security
 
@@ -217,9 +218,9 @@ const cleanup = IntersectionObserverWrapper.lazyLoad(
 | [form](documentation/form.md)               | [storage](documentation/storage.md)           |
 | [fullscreen](documentation/fullscreen.md)   | [url](documentation/url.md)                   |
 | [geolocation](documentation/geolocation.md) | [visibility](documentation/visibility.md)     |
-| [html](documentation/html.md)               | [websocket](documentation/websocket.md)       |
-| [idle](documentation/idle.md)               | [glossary](documentation/glossary.md)         |
-| [indexeddb](documentation/indexeddb.md)     |                                               |
+| [html](documentation/html.md)               | [wakelock](documentation/wakelock.md)         |
+| [idle](documentation/idle.md)               | [websocket](documentation/websocket.md)       |
+| [indexeddb](documentation/indexeddb.md)     | [glossary](documentation/glossary.md)         |
 
 **Recipes:** [Offline-First App](documentation/recipes/offline-first-app.md) ·
 [Secure File Upload](documentation/recipes/secure-file-upload.md) ·

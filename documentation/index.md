@@ -43,6 +43,7 @@ security-first design.
 | [storage](storage.md)           | Type-safe localStorage with LRU eviction and namespacing  |
 | [url](url.md)                   | URL building, query params, and history management        |
 | [visibility](visibility.md)     | Page Visibility API wrapper for tab visibility detection  |
+| [wakelock](wakelock.md)         | Screen Wake Lock API wrapper with auto re-acquisition     |
 | [websocket](websocket.md)       | WebSocket wrapper with auto-reconnection                  |
 | [a11y](a11y.md)                 | Accessibility utilities (ARIA, announcements, skip links) |
 
