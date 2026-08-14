@@ -65,6 +65,15 @@ import {
 } from './RequestRetry.js';
 import { parseRetryAfter } from './RetryAfter.js';
 import {
+  resolveDedupeConfig,
+  dedupeKey,
+  createInFlightRequest,
+  attachCaller,
+  type RequestDedupeConfig,
+  type ResolvedDedupeConfig,
+  type InFlightRequest,
+} from './RequestDedupe.js';
+import {
   validateUrl,
   validateCredentialOrigin,
   combineAbortSignals,
@@ -257,6 +266,17 @@ export interface MutableRequestConfig {
 }
 
 /**
+ * RequestInit accepted by the interceptor's request methods.
+ */
+export interface InterceptorRequestInit extends RequestInit {
+  /**
+   * Opt this request out of deduplication (`false`) even when the
+   * instance has a dedupe configuration. Has no effect without one.
+   */
+  readonly dedupe?: boolean;
+}
+
+/**
  * Response wrapper with timing info.
  */
 export interface InterceptedResponse {
@@ -307,6 +327,12 @@ export interface RequestTiming {
    * `throwOnError` carries both `status` and `error`.
    */
   readonly error?: string;
+  /**
+   * Number of additional callers that attached to this request via
+   * deduplication (including callers that aborted before completion).
+   * Present only when the request ran through the dedupe path.
+   */
+  readonly dedupedCallers?: number;
 }
 
 /**
@@ -375,6 +401,22 @@ export interface RequestInterceptorConfig {
    * Default: undefined (no retries).
    */
   readonly retry?: RequestRetryConfig;
+  /**
+   * Deduplicate identical in-flight requests (opt-in).
+   *
+   * Concurrent requests with the same method, URL, and caller-supplied
+   * headers share a single execution; every caller receives an
+   * independent clone of the response. Only safe methods (GET, HEAD,
+   * OPTIONS) are eligible. Individual requests can opt out via
+   * `dedupe: false`. Middleware, timing, and error handlers run once
+   * per physical request, not per caller.
+   *
+   * Entries are removed as soon as the request settles — this is not a
+   * response cache (see the cache module for caching).
+   *
+   * Default: undefined (no deduplication).
+   */
+  readonly dedupe?: RequestDedupeConfig;
 }
 
 /**
@@ -382,10 +424,10 @@ export interface RequestInterceptorConfig {
  */
 export interface RequestInterceptorInstance {
   /** Make a fetch request */
-  fetch(url: string, options?: RequestInit): Promise<Response>;
+  fetch(url: string, options?: InterceptorRequestInit): Promise<Response>;
 
   /** Make a GET request */
-  get(url: string, options?: Omit<RequestInit, 'method'>): Promise<Response>;
+  get(url: string, options?: Omit<InterceptorRequestInit, 'method'>): Promise<Response>;
 
   /** Make a POST request */
   post(
@@ -412,10 +454,10 @@ export interface RequestInterceptorInstance {
   delete(url: string, options?: Omit<RequestInit, 'method'>): Promise<Response>;
 
   /** Make a HEAD request */
-  head(url: string, options?: Omit<RequestInit, 'method'>): Promise<Response>;
+  head(url: string, options?: Omit<InterceptorRequestInit, 'method'>): Promise<Response>;
 
   /** Make an OPTIONS request */
-  options(url: string, options?: Omit<RequestInit, 'method'>): Promise<Response>;
+  options(url: string, options?: Omit<InterceptorRequestInit, 'method'>): Promise<Response>;
 
   /** Add middleware */
   use(middleware: RequestMiddleware): CleanupFn;
@@ -443,7 +485,7 @@ export interface RequestInterceptorInstance {
 const DEFAULT_CONFIG: Required<
   Omit<
     RequestInterceptorConfig,
-    'auth' | 'baseUrl' | 'blockedPatterns' | 'expectedContentType' | 'retry'
+    'auth' | 'baseUrl' | 'blockedPatterns' | 'expectedContentType' | 'retry' | 'dedupe'
   >
 > & {
   auth: AuthConfig | null;
@@ -451,6 +493,7 @@ const DEFAULT_CONFIG: Required<
   blockedPatterns: readonly RegExp[];
   expectedContentType: string | readonly string[] | undefined;
   retry: RequestRetryConfig | undefined;
+  dedupe: RequestDedupeConfig | undefined;
 } = {
   baseUrl: '',
   timeout: 30000,
@@ -463,6 +506,7 @@ const DEFAULT_CONFIG: Required<
   blockPrivateIPs: false,
   expectedContentType: undefined,
   retry: undefined,
+  dedupe: undefined,
 } as const;
 
 /**
@@ -588,6 +632,22 @@ export const RequestInterceptor = {
    *   retry: { maxRetries: 2, methods: ['GET', 'POST'] },
    * });
    * ```
+   *
+   * @example With request deduplication
+   * ```TypeScript
+   * // Identical concurrent GET/HEAD/OPTIONS requests share one execution;
+   * // every caller receives an independent clone of the response
+   * const api = RequestInterceptor.create({
+   *   baseUrl: 'https://api.example.com',
+   *   dedupe: {},
+   * });
+   *
+   * const [a, b] = await Promise.all([api.get('/users'), api.get('/users')]);
+   * // one physical request; a and b are independently readable
+   *
+   * // Opt a single request out
+   * await api.get('/users', { dedupe: false });
+   * ```
    */
   create(config: RequestInterceptorConfig = {}): RequestInterceptorInstance {
     if (!RequestInterceptor.isSupported()) {
@@ -617,6 +677,13 @@ export const RequestInterceptor = {
     // Resolve and validate retry configuration once (opt-in)
     const retryConfig: ResolvedRetryConfig | null =
       options.retry !== undefined ? resolveRetryConfig(options.retry) : null;
+
+    // Resolve and validate dedupe configuration once (opt-in)
+    const dedupeConfig: ResolvedDedupeConfig | null =
+      options.dedupe !== undefined ? resolveDedupeConfig(options.dedupe) : null;
+
+    // Shared in-flight requests, keyed by method + URL + caller headers
+    const inFlight = new Map<string, InFlightRequest>();
 
     // State
     let currentAuth: AuthConfig | null = options.auth ?? null;
@@ -736,22 +803,24 @@ export const RequestInterceptor = {
     };
 
     /**
-     * Execute fetch request.
+     * Run a request through middleware, the retry loop, and finalization.
+     * Runs exactly once per physical request; deduplicated callers attach
+     * to the returned promise instead of getting their own run.
      */
-    const executeFetch = async (url: string, init?: RequestInit): Promise<Response> => {
-      if (destroyed) {
-        throw RequestError.invalidConfig('Interceptor has been destroyed');
-      }
-
-      // Capture instance abort signal before any async work
-      const instanceSignal = instanceAbortController.signal;
-
-      // Build and run request middleware (once - retries reuse the final config)
-      let config = await buildRequestConfig(url, init);
-      config = await runRequestMiddleware(config, middlewares);
+    const runRequest = async (
+      initialConfig: MutableRequestConfig,
+      instanceSignal: AbortSignal,
+      dedupedCallers: (() => number) | null
+    ): Promise<Response> => {
+      // Run request middleware (once - retries reuse the final config)
+      const config = await runRequestMiddleware(initialConfig, middlewares);
 
       const startTime = performance.now();
       const frozenConfig = freezeConfig(config);
+
+      // Timing extension for the dedupe path: number of extra callers served
+      const dedupeTiming = (): { dedupedCallers?: number } =>
+        dedupedCallers !== null ? { dedupedCallers: dedupedCallers() } : {};
 
       // Finalize a failed request: emit timing, run error middleware, throw
       const fail = async (error: RequestError): Promise<never> => {
@@ -765,6 +834,7 @@ export const RequestInterceptor = {
             endTime,
             duration: endTime - startTime,
             error: error.message,
+            ...dedupeTiming(),
           },
           timingHandlers
         );
@@ -865,6 +935,7 @@ export const RequestInterceptor = {
               duration,
               status: response.status,
               error: error.message,
+              ...dedupeTiming(),
             },
             timingHandlers
           );
@@ -882,6 +953,7 @@ export const RequestInterceptor = {
             endTime,
             duration,
             status: response.status,
+            ...dedupeTiming(),
           },
           timingHandlers
         );
@@ -933,10 +1005,68 @@ export const RequestInterceptor = {
       }
     };
 
+    /**
+     * Execute a fetch request, sharing identical in-flight requests when
+     * deduplication applies.
+     */
+    const executeFetch = async (url: string, init?: InterceptorRequestInit): Promise<Response> => {
+      if (destroyed) {
+        throw RequestError.invalidConfig('Interceptor has been destroyed');
+      }
+
+      // Capture instance abort signal before any async work
+      const instanceSignal = instanceAbortController.signal;
+
+      // Build config (URL validation and auth run for every caller)
+      const config = await buildRequestConfig(url, init);
+
+      // An already-aborted caller takes the plain path: starting a shared
+      // execution for it would run an unobserved request no caller waits on
+      const useDedupe =
+        dedupeConfig !== null &&
+        init?.dedupe !== false &&
+        dedupeConfig.methods.has(config.method) &&
+        config.signal?.aborted !== true;
+
+      if (!useDedupe) {
+        return runRequest(config, instanceSignal, null);
+      }
+
+      // The key uses the caller-supplied headers, not the merged config
+      // headers: instance-level defaults and auth are identical for every
+      // request of this instance and would leak credentials into the key
+      const key = dedupeKey(config.method, config.url, new Headers(init?.headers));
+
+      const existing = inFlight.get(key);
+      if (existing !== undefined) {
+        return attachCaller(existing, config.signal, config.url);
+      }
+
+      // Initiate the shared execution: the caller's signal is replaced by
+      // the shared refcounted signal; the caller attaches like everyone else
+      const callerSignal = config.signal;
+      let entry: InFlightRequest | null = null;
+      const created = createInFlightRequest((sharedSignal) => {
+        config.signal = sharedSignal;
+        return runRequest(config, instanceSignal, () =>
+          entry !== null ? entry.totalCallers - 1 : 0
+        );
+      });
+      entry = created;
+
+      inFlight.set(key, created);
+      const cleanup = (): void => {
+        inFlight.delete(key);
+      };
+      created.promise.then(cleanup, cleanup);
+
+      return attachCaller(created, callerSignal, config.url);
+    };
+
     return {
       fetch: executeFetch,
 
-      get(url: string, options?: Omit<RequestInit, 'method'>): Promise<Response> {
+      get(url: string, options?: Omit<InterceptorRequestInit, 'method'>): Promise<Response> {
         return executeFetch(url, { ...options, method: 'GET' });
       },
 
@@ -968,11 +1098,11 @@ export const RequestInterceptor = {
         return executeFetch(url, { ...options, method: 'DELETE' });
       },
 
-      head(url: string, options?: Omit<RequestInit, 'method'>): Promise<Response> {
+      head(url: string, options?: Omit<InterceptorRequestInit, 'method'>): Promise<Response> {
         return executeFetch(url, { ...options, method: 'HEAD' });
       },
 
-      options(url: string, init?: Omit<RequestInit, 'method'>): Promise<Response> {
+      options(url: string, init?: Omit<InterceptorRequestInit, 'method'>): Promise<Response> {
         return executeFetch(url, { ...init, method: 'OPTIONS' });
       },
 
@@ -1004,16 +1134,26 @@ export const RequestInterceptor = {
           blockPrivateIPs: options.blockPrivateIPs,
           expectedContentType: options.expectedContentType,
           retry: options.retry ? Object.freeze({ ...options.retry }) : undefined,
+          dedupe: options.dedupe ? Object.freeze({ ...options.dedupe }) : undefined,
         });
       },
 
       setAuth(auth: AuthConfig | null): void {
         currentAuth = auth;
+        // The dedupe key excludes auth on the invariant that it is
+        // identical for every request of this instance. An auth change
+        // breaks that invariant for in-flight entries, so drop them:
+        // new callers start fresh requests under the new credentials
+        // instead of receiving a response from the old security context.
+        inFlight.clear();
       },
 
       abortAll(): void {
         instanceAbortController.abort();
         instanceAbortController = new AbortController();
+        // Doomed shared entries only leave the map when their promises
+        // settle (async); clear now so new requests never attach to them
+        inFlight.clear();
       },
 
       destroy(): void {
@@ -1021,6 +1161,7 @@ export const RequestInterceptor = {
         destroyed = true;
         middlewares.length = 0;
         timingHandlers.clear();
+        inFlight.clear();
         currentAuth = null;
       },
     };

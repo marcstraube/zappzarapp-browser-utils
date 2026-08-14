@@ -34,6 +34,7 @@ api.destroy();
 | Response Middleware   | Transform responses after receiving             |
 | Error Middleware      | Handle errors in middleware chain               |
 | Automatic Retry       | Opt-in retry with backoff and Retry-After       |
+| Request Deduplication | Opt-in sharing of identical in-flight requests  |
 | Request Timing        | Track request duration and performance          |
 | URL Validation        | Protocol allowlist and pattern blocking         |
 | Credential Protection | Prevent credential leakage to different origins |
@@ -59,6 +60,9 @@ api.destroy();
 | `RequestError`               | Request-specific error class                      |
 | `RequestErrorCode`           | Error code enum                                   |
 | `RequestRetryConfig`         | Retry configuration options                       |
+| `RequestDedupeConfig`        | Deduplication configuration options               |
+| `InterceptorRequestInit`     | RequestInit with the per-request `dedupe` flag    |
+| `DedupeMethod`               | Methods allowed in `RequestDedupeConfig.methods`  |
 | `parseRetryAfter`            | Parse a Retry-After header value to milliseconds  |
 | `combineAbortSignals`        | Utility to merge two AbortSignals into one        |
 | `ProgressInfo`               | Progress data: loaded, total, percentage          |
@@ -83,6 +87,7 @@ api.destroy();
 | `blockPrivateIPs`          | `boolean`               | `false`      | Block requests to private/internal IPs   |
 | `expectedContentType`      | `string \| string[]`    | `undefined`  | Validate response Content-Type           |
 | `retry`                    | `RequestRetryConfig`    | `undefined`  | Automatic retry (see Automatic Retry)    |
+| `dedupe`                   | `RequestDedupeConfig`   | `undefined`  | Share identical in-flight requests       |
 
 ## API Reference
 
@@ -487,6 +492,53 @@ parseRetryAfter('120'); // 120000 (delta-seconds)
 parseRetryAfter('Fri, 31 Dec 2027 23:59:59 GMT'); // ms until that date
 parseRetryAfter('garbage'); // null
 ```
+
+## Request Deduplication
+
+Opt-in sharing of identical in-flight requests. When a request with the same
+method, URL, and caller-supplied headers is already pending, the new caller
+attaches to the running request instead of sending a duplicate. Every caller
+receives an independent clone of the response, so all of them can read the body.
+This is not a response cache — the entry is removed the moment the request
+settles (see the cache module for caching).
+
+```typescript
+const api = RequestInterceptor.create({
+  baseUrl: 'https://api.example.com',
+  dedupe: {},
+});
+
+// One physical request; both responses are independently readable
+const [a, b] = await Promise.all([api.get('/users'), api.get('/users')]);
+
+// Opt a single request out
+await api.get('/users', { dedupe: false });
+```
+
+### Dedupe Options
+
+| Option    | Type             | Default                    | Description                 |
+| --------- | ---------------- | -------------------------- | --------------------------- |
+| `methods` | `DedupeMethod[]` | `['GET','HEAD','OPTIONS']` | Methods eligible for dedupe |
+
+### Dedupe Rules
+
+- Only safe methods (`GET`, `HEAD`, `OPTIONS`) are eligible. Unlike retry there
+  is no opt-in for unsafe methods: two callers of a request with side effects
+  expect two side effects.
+- The key is built from the method, the resolved URL, and the caller-supplied
+  headers. Instance-level defaults and auth headers are identical for every
+  request of an instance and are not part of the key.
+- Middleware, timing, and error handlers run once per physical request, not per
+  caller. The timing event reports how many extra callers were served via
+  `dedupedCallers`.
+- Aborting one caller only rejects that caller with `ABORTED`; the shared
+  request is aborted once every attached caller has aborted. `abortAll()` and
+  `destroy()` abort shared requests immediately.
+- `setAuth()` invalidates all in-flight entries: callers after an auth change
+  never receive a response initiated under the old credentials.
+- Retries (when configured) happen inside the shared execution — attached
+  callers wait through them.
 
 ## Combining Abort Signals
 
