@@ -7,6 +7,7 @@ security-first design.
 
 | Module                          | Description                                               |
 | ------------------------------- | --------------------------------------------------------- |
+| [a11y](a11y.md)                 | Accessibility utilities (ARIA, announcements, skip links) |
 | [broadcast](broadcast.md)       | Multi-tab communication via BroadcastChannel API          |
 | [cache](cache.md)               | HTTP-style caching with stale-while-revalidate            |
 | [clipboard](clipboard.md)       | Clipboard API with fallbacks                              |
@@ -35,7 +36,7 @@ security-first design.
 | [observe](observe.md)           | Observer wrappers (Intersection, Resize, Mutation)        |
 | [offline](offline.md)           | Offline queue with IndexedDB persistence and auto-sync    |
 | [performance](performance.md)   | Performance API and Core Web Vitals monitoring            |
-| [request](request.md)           | Fetch API interceptor with middleware and auth support    |
+| [request](request.md)           | Fetch interceptor: middleware, auth, retry, dedupe        |
 | [sanitize](sanitize.md)         | HTML sanitization with DOMPurify integration              |
 | [scroll](scroll.md)             | Scroll utilities and smooth scrolling                     |
 | [session](session.md)           | Type-safe sessionStorage management                       |
@@ -45,7 +46,6 @@ security-first design.
 | [visibility](visibility.md)     | Page Visibility API wrapper for tab visibility detection  |
 | [wakelock](wakelock.md)         | Screen Wake Lock API wrapper with auto re-acquisition     |
 | [websocket](websocket.md)       | WebSocket wrapper with auto-reconnection                  |
-| [a11y](a11y.md)                 | Accessibility utilities (ARIA, announcements, skip links) |
 
 ## Recipes
 

@@ -17,7 +17,7 @@ tree-shakeable, and fully tested.
 - **Secure by default** — cryptographic randomness, input validation, XSS
   prevention
 - **Dual error handling** — throwing and Result-based APIs
-- **Quality-backed** — 4600+ tests, strict ESLint, 99%+ coverage
+- **Quality-backed** — 4800+ tests, strict ESLint, 99%+ coverage
 
 ## Modules
 
@@ -63,7 +63,7 @@ tree-shakeable, and fully tested.
 | network   | `RetryQueue`, `NetworkStatus` | Retry queue with backoff              |
 | offline   | `OfflineQueue`                | IndexedDB-backed offline sync         |
 | websocket | `WebSocketManager`            | Auto-reconnect + SSE/polling fallback |
-| request   | `RequestInterceptor`          | Fetch middleware, auth, progress      |
+| request   | `RequestInterceptor`          | Fetch middleware, auth, retry, dedupe |
 | url       | `UrlBuilder`                  | URL building, query params            |
 | broadcast | `BroadcastManager`            | Cross-tab messaging                   |
 | share     | `ShareManager`                | Web Share API with clipboard fallback |
