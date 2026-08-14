@@ -240,4 +240,4 @@ export const BrowserNotification = {
       return Result.err(NotificationError.showFailed(e));
     }
   },
-} as const;
+};

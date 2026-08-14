@@ -180,4 +180,4 @@ export const ShareManager = {
       return Result.err(mapShareException(e));
     }
   },
-} as const;
+};

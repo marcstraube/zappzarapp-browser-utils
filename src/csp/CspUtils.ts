@@ -520,4 +520,4 @@ export const CspUtils = {
       return false;
     }
   },
-} as const;
+};

@@ -187,4 +187,4 @@ export const Downloader = {
     });
     Downloader.download(content, options);
   },
-} as const;
+};

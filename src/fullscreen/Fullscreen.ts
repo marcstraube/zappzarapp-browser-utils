@@ -227,4 +227,4 @@ export const Fullscreen = {
       document.removeEventListener('MSFullscreenError', handler);
     };
   },
-} as const;
+};

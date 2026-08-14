@@ -106,4 +106,4 @@ export const StorageValidator = {
 
     return Result.ok(prefix);
   },
-} as const;
+};

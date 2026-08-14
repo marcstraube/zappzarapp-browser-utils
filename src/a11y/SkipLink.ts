@@ -133,4 +133,4 @@ export const SkipLink = {
       link.remove();
     };
   },
-} as const;
+};

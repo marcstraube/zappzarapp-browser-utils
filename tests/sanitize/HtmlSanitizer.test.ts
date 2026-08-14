@@ -68,6 +68,37 @@ describe('HtmlSanitizer', () => {
       });
     });
 
+    it('should default ALLOW_DATA_ATTR to false when allowDataUrls is unset', () => {
+      const mockDOMPurify = {
+        sanitize: vi.fn((html: string) => html),
+        addHook: vi.fn(),
+        removeHook: vi.fn(),
+        removeAllHooks: vi.fn(),
+      };
+
+      HtmlSanitizer.setDOMPurify(mockDOMPurify);
+      HtmlSanitizer.sanitize('<b>test</b>');
+
+      expect(mockDOMPurify.sanitize).toHaveBeenCalledWith(
+        '<b>test</b>',
+        expect.objectContaining({ ALLOW_DATA_ATTR: false })
+      );
+    });
+
+    it('should return empty string for empty input without invoking DOMPurify', () => {
+      const mockDOMPurify = {
+        sanitize: vi.fn((html: string) => html),
+        addHook: vi.fn(),
+        removeHook: vi.fn(),
+        removeAllHooks: vi.fn(),
+      };
+
+      HtmlSanitizer.setDOMPurify(mockDOMPurify);
+
+      expect(HtmlSanitizer.sanitize('')).toBe('');
+      expect(mockDOMPurify.sanitize).not.toHaveBeenCalled();
+    });
+
     it('should clear DOMPurify instance', () => {
       const mockDOMPurify = {
         sanitize: vi.fn(),

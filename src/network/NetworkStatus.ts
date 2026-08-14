@@ -244,4 +244,4 @@ export const NetworkStatus = {
 
     return navigator.connection ?? navigator.mozConnection ?? navigator.webkitConnection ?? null;
   },
-} as const;
+};

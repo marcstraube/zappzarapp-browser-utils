@@ -93,4 +93,4 @@ export const CommonValidator = {
     }
     return Result.ok(text);
   },
-} as const;
+};

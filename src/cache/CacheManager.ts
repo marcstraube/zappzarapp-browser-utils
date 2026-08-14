@@ -786,4 +786,4 @@ export const CacheManager = {
       return Result.err(CacheError.storageFailed('create', e));
     }
   },
-} as const;
+};

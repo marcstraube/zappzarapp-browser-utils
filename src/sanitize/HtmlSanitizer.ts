@@ -363,7 +363,6 @@ export const HtmlSanitizer = {
    * @returns Safe URL or fallback
    */
   sanitizeUrl(url: string, fallback = '#'): string {
-    if (!url) return fallback;
     return HtmlSanitizer.isSafeUrl(url) ? url : fallback;
   },
 
@@ -416,4 +415,4 @@ export const HtmlSanitizer = {
   setHtmlContent(element: Element, html: string, options?: SanitizerOptions): void {
     element.innerHTML = HtmlSanitizer.sanitize(html, options);
   },
-} as const;
+};

@@ -320,4 +320,4 @@ export const NonceManager = {
       destroy,
     };
   },
-} as const;
+};

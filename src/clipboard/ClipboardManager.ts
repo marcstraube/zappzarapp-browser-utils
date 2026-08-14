@@ -240,4 +240,4 @@ export const ClipboardManager = {
       return Result.err(ClipboardError.writeFailed(e));
     }
   },
-} as const;
+};
