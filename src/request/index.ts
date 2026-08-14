@@ -12,10 +12,13 @@ export type {
   TimingHandler,
   RequestInterceptorConfig,
   RequestInterceptorInstance,
+  InterceptorRequestInit,
 } from './RequestInterceptor.js';
 export { combineAbortSignals, validateContentType } from './RequestValidation.js';
 export { parseRetryAfter } from './RetryAfter.js';
 export type { RequestRetryConfig } from './RequestRetry.js';
+export { DEDUPE_SAFE_METHODS } from './RequestDedupe.js';
+export type { RequestDedupeConfig, DedupeMethod } from './RequestDedupe.js';
 export {
   trackDownloadProgress,
   trackUploadProgress,
