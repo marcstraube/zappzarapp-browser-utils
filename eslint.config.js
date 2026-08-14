@@ -55,10 +55,10 @@ export default [
         },
       },
       'boundaries/elements': [
-        { type: 'entry', pattern: 'src/index.ts', mode: 'file' },
         { type: 'core', pattern: 'src/core' },
         { type: 'module', pattern: 'src/*', capture: ['family'] },
       ],
+      'boundaries/files': [{ pattern: 'src/index.ts', category: 'entry' }],
     },
     rules: {
       // TypeScript recommended rules
@@ -122,36 +122,43 @@ export default [
         'error',
         {
           default: 'disallow',
-          rules: [
+          policies: [
             // Entry point can import any module
             {
-              from: { type: 'entry' },
-              allow: [{ to: { type: 'core' } }, { to: { type: 'module' } }],
+              from: { file: { categories: 'entry' } },
+              allow: [
+                { to: { element: { type: 'core' } } },
+                { to: { element: { type: 'module' } } },
+              ],
             },
             // Core can only import from core (internal)
             {
-              from: { type: 'core' },
-              allow: [{ to: { type: 'core' } }],
+              from: { element: { type: 'core' } },
+              allow: [{ to: { element: { type: 'core' } } }],
             },
             // Domain modules can import from core and from themselves (same family)
             {
-              from: { type: 'module' },
+              from: { element: { type: 'module' } },
               allow: [
-                { to: { type: 'core' } },
-                { to: { type: 'module', captured: { family: '{{ from.captured.family }}' } } },
+                { to: { element: { type: 'core' } } },
+                {
+                  to: {
+                    element: { type: 'module', captured: { family: '{{ from.captured.family }}' } },
+                  },
+                },
               ],
             },
             // session extends BaseStorageManager from storage
             {
-              from: { type: 'module', captured: { family: 'session' } },
-              allow: [{ to: { type: 'module', captured: { family: 'storage' } } }],
+              from: { element: { type: 'module', captured: { family: 'session' } } },
+              allow: [{ to: { element: { type: 'module', captured: { family: 'storage' } } } }],
             },
             // offline integrates indexeddb persistence with network status
             {
-              from: { type: 'module', captured: { family: 'offline' } },
+              from: { element: { type: 'module', captured: { family: 'offline' } } },
               allow: [
-                { to: { type: 'module', captured: { family: 'indexeddb' } } },
-                { to: { type: 'module', captured: { family: 'network' } } },
+                { to: { element: { type: 'module', captured: { family: 'indexeddb' } } } },
+                { to: { element: { type: 'module', captured: { family: 'network' } } } },
               ],
             },
           ],
