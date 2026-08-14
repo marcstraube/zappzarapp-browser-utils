@@ -1,11 +1,16 @@
 overrides:
   '@isaacs/brace-expansion': '>=5.0.1'
   smol-toml: '>=1.6.1'
-  fast-uri: '>=3.1.2'
+  fast-uri: '>=4.1.2'
+  tar: '>=7.5.21'
+  undici: '^7.29.0'
+  'brace-expansion@>=4.0.0 <5.0.9': '>=5.0.9'
+  'nanoid@<3.3.18': '>=3.3.18 <4'
+  'nanoid@>=4.0.0 <5.1.16': '>=5.1.16 <6'
   qs: '>=6.15.2'
   js-yaml: '>=4.2.0'
   '@babel/core': '>=7.29.1'
-  dompurify: '>=3.4.11'
+  dompurify: '>=3.4.13'
   markdown-it: '>=14.1.2'
 
 allowBuilds:
