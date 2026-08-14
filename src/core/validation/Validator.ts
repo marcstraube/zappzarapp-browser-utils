@@ -27,6 +27,8 @@ import { FilenameValidator } from './FilenameValidator.js';
 import { CookieValidator } from './CookieValidator.js';
 import { UrlValidator } from './UrlValidator.js';
 import { CommonValidator } from './CommonValidator.js';
+import type { Result } from '../result/index.js';
+import type { ValidationError } from '../errors/index.js';
 
 /**
  * Unified Validator facade.
@@ -46,13 +48,15 @@ export const Validator = {
   storageKey: (key: string): void => StorageValidator.storageKey(key),
 
   /** @see StorageValidator.storageKeyResult */
-  storageKeyResult: (key: string) => StorageValidator.storageKeyResult(key),
+  storageKeyResult: (key: string): Result<string, ValidationError> =>
+    StorageValidator.storageKeyResult(key),
 
   /** @see StorageValidator.storagePrefix */
   storagePrefix: (prefix: string): void => StorageValidator.storagePrefix(prefix),
 
   /** @see StorageValidator.storagePrefixResult */
-  storagePrefixResult: (prefix: string) => StorageValidator.storagePrefixResult(prefix),
+  storagePrefixResult: (prefix: string): Result<string, ValidationError> =>
+    StorageValidator.storagePrefixResult(prefix),
 
   // =========================================================================
   // Cache Validation (from CacheValidator)
@@ -62,7 +66,8 @@ export const Validator = {
   cacheKey: (key: string): void => CacheValidator.cacheKey(key),
 
   /** @see CacheValidator.cacheKeyResult */
-  cacheKeyResult: (key: string) => CacheValidator.cacheKeyResult(key),
+  cacheKeyResult: (key: string): Result<string, ValidationError> =>
+    CacheValidator.cacheKeyResult(key),
 
   // =========================================================================
   // Filename Validation (from FilenameValidator)
@@ -72,17 +77,19 @@ export const Validator = {
   filename: (filename: string): void => FilenameValidator.filename(filename),
 
   /** @see FilenameValidator.filenameResult */
-  filenameResult: (filename: string) => FilenameValidator.filenameResult(filename),
+  filenameResult: (filename: string): Result<string, ValidationError> =>
+    FilenameValidator.filenameResult(filename),
 
   /** @see FilenameValidator.sanitizeFilename */
-  sanitizeFilename: (filename: string, replacement?: string) =>
+  sanitizeFilename: (filename: string, replacement?: string): string =>
     FilenameValidator.sanitizeFilename(filename, replacement),
 
   /** @see FilenameValidator.mimeType */
   mimeType: (mimeType: string): void => FilenameValidator.mimeType(mimeType),
 
   /** @see FilenameValidator.mimeTypeResult */
-  mimeTypeResult: (mimeType: string) => FilenameValidator.mimeTypeResult(mimeType),
+  mimeTypeResult: (mimeType: string): Result<string, ValidationError> =>
+    FilenameValidator.mimeTypeResult(mimeType),
 
   // =========================================================================
   // Cookie Validation (from CookieValidator)
@@ -92,13 +99,15 @@ export const Validator = {
   cookieName: (name: string): void => CookieValidator.cookieName(name),
 
   /** @see CookieValidator.cookieNameResult */
-  cookieNameResult: (name: string) => CookieValidator.cookieNameResult(name),
+  cookieNameResult: (name: string): Result<string, ValidationError> =>
+    CookieValidator.cookieNameResult(name),
 
   /** @see CookieValidator.cookieValue */
   cookieValue: (value: string): void => CookieValidator.cookieValue(value),
 
   /** @see CookieValidator.cookieValueResult */
-  cookieValueResult: (value: string) => CookieValidator.cookieValueResult(value),
+  cookieValueResult: (value: string): Result<string, ValidationError> =>
+    CookieValidator.cookieValueResult(value),
 
   // =========================================================================
   // URL Validation (from UrlValidator)
@@ -108,7 +117,7 @@ export const Validator = {
   urlSafe: (url: string): void => UrlValidator.urlSafe(url),
 
   /** @see UrlValidator.urlSafeResult */
-  urlSafeResult: (url: string) => UrlValidator.urlSafeResult(url),
+  urlSafeResult: (url: string): Result<string, ValidationError> => UrlValidator.urlSafeResult(url),
 
   // =========================================================================
   // Common Validation (from CommonValidator)
@@ -118,26 +127,32 @@ export const Validator = {
   nonEmpty: (field: string, value: string): void => CommonValidator.nonEmpty(field, value),
 
   /** @see CommonValidator.nonEmptyResult */
-  nonEmptyResult: (field: string, value: string) => CommonValidator.nonEmptyResult(field, value),
+  nonEmptyResult: (field: string, value: string): Result<string, ValidationError> =>
+    CommonValidator.nonEmptyResult(field, value),
 
   /** @see CommonValidator.numberInRange */
   numberInRange: (field: string, value: number, min: number, max: number): void =>
     CommonValidator.numberInRange(field, value, min, max),
 
   /** @see CommonValidator.numberInRangeResult */
-  numberInRangeResult: (field: string, value: number, min: number, max: number) =>
-    CommonValidator.numberInRangeResult(field, value, min, max),
+  numberInRangeResult: (
+    field: string,
+    value: number,
+    min: number,
+    max: number
+  ): Result<number, ValidationError> => CommonValidator.numberInRangeResult(field, value, min, max),
 
   /** @see CommonValidator.positiveIntegerResult */
-  positiveIntegerResult: (field: string, value: number) =>
+  positiveIntegerResult: (field: string, value: number): Result<number, ValidationError> =>
     CommonValidator.positiveIntegerResult(field, value),
 
   /** @see CommonValidator.clipboardText */
   clipboardText: (text: string): void => CommonValidator.clipboardText(text),
 
   /** @see CommonValidator.clipboardTextResult */
-  clipboardTextResult: (text: string) => CommonValidator.clipboardTextResult(text),
-} as const;
+  clipboardTextResult: (text: string): Result<string, ValidationError> =>
+    CommonValidator.clipboardTextResult(text),
+};
 
 // Re-export domain validators for tree-shaking
 export { StorageValidator } from './StorageValidator.js';

@@ -97,7 +97,7 @@ export const LiveAnnouncer = {
       },
     };
   },
-} as const;
+};
 
 /**
  * Create a visually hidden live region element.

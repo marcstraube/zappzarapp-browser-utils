@@ -114,4 +114,4 @@ export const UrlValidator = {
 
     return Result.ok(url);
   },
-} as const;
+};

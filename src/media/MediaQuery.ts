@@ -300,4 +300,4 @@ export const MediaQuery = {
         (navigator as unknown as { standalone?: boolean }).standalone === true)
     );
   },
-} as const;
+};

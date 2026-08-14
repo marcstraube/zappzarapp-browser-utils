@@ -330,4 +330,4 @@ export const ResizeObserverWrapper = {
       devicePixelContentBoxSize: [{ blockSize: rect.height, inlineSize: rect.width }],
     };
   },
-} as const;
+};

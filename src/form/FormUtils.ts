@@ -347,4 +347,4 @@ export const FormUtils = {
       window.removeEventListener('beforeunload', beforeUnloadHandler);
     };
   },
-} as const;
+};

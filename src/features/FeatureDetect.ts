@@ -310,4 +310,4 @@ export const FeatureDetect = {
       mutationObserver: FeatureDetect.mutationObserver(),
     };
   },
-} as const;
+};

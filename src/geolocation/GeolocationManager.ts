@@ -184,4 +184,4 @@ export const GeolocationManager = {
       navigator.geolocation.clearWatch(watchId);
     };
   },
-} as const;
+};

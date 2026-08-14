@@ -287,4 +287,4 @@ export const BroadcastManager = {
       },
     };
   },
-} as const;
+};

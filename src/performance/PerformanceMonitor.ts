@@ -431,4 +431,4 @@ export const PerformanceMonitor = {
 
     return instance;
   },
-} as const;
+};

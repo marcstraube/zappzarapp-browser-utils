@@ -1186,4 +1186,4 @@ export const RequestInterceptor = {
 
     return result;
   },
-} as const;
+};

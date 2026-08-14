@@ -278,4 +278,4 @@ export const HistoryManager = {
       );
     }
   },
-} as const;
+};

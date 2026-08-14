@@ -262,4 +262,4 @@ export const FocusTrap = {
       isPaused: (): boolean => paused,
     };
   },
-} as const;
+};

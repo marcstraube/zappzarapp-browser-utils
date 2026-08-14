@@ -598,4 +598,4 @@ export const Result = {
     }
     return handlers.err(result.error);
   },
-} as const;
+};

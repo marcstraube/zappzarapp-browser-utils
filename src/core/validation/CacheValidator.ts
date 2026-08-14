@@ -52,4 +52,4 @@ export const CacheValidator = {
 
     return Result.ok(key);
   },
-} as const;
+};

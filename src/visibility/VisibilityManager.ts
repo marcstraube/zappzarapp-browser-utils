@@ -144,4 +144,4 @@ export const VisibilityManager = {
       document.removeEventListener('visibilitychange', eventHandler);
     };
   },
-} as const;
+};

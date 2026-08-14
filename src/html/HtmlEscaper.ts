@@ -237,4 +237,4 @@ export const HtmlEscaper = {
     }
     return HtmlEscaper.escapeAttr(url);
   },
-} as const;
+};
