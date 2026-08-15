@@ -138,4 +138,4 @@ export const WakeLock = {
       },
     });
   },
-} as const;
+};

@@ -218,4 +218,4 @@ export const DomHelper = {
   isVisible(element: HTMLElement): boolean {
     return element.style.display !== 'none' && element.offsetParent !== null;
   },
-} as const;
+};

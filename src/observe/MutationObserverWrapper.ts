@@ -360,4 +360,4 @@ export const MutationObserverWrapper = {
       true
     );
   },
-} as const;
+};

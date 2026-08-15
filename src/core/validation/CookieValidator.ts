@@ -91,4 +91,4 @@ export const CookieValidator = {
 
     return Result.ok(value);
   },
-} as const;
+};

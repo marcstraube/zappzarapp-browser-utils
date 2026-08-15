@@ -16,21 +16,26 @@ package info, structure, and tooling details.
 
 ```text
 src/
-├── core/               # Core utilities (types, errors, validation, result, logger, debounce, throttle, backoff)
+├── core/               # Core utilities (types, errors, validation, result, logger, crypto, debounce, throttle, backoff)
 │   ├── errors/         # Error classes (BrowserUtilsError, ValidationError, etc.)
 │   ├── result/         # Result<T,E> type for explicit error handling
 │   ├── validation/     # Input validation utilities (incl. CacheValidator)
 │   ├── types.ts        # Shared type definitions
 │   ├── logger.ts       # LoggerLike interface, noopLogger
+│   ├── crypto.ts       # Cryptographic randomness helpers
+│   ├── Backoff.ts      # Backoff delay computation
 │   ├── Debounce.ts     # Debounce utility (pure function)
 │   └── Throttle.ts     # Throttle utility (pure function)
 ├── a11y/               # Accessibility utilities (AriaUtils, LiveAnnouncer, ReducedMotion, SkipLink)
 ├── broadcast/          # BroadcastChannel cross-tab messaging
+├── cache/              # HTTP cache with stale-while-revalidate
 ├── clipboard/          # Clipboard API wrapper
+├── color/              # Color parse/convert/contrast/manipulate
 ├── cookie/             # Cookie management with secure defaults
 ├── csp/                # Content Security Policy utilities
 ├── device/             # Device information detection
 ├── download/           # File download utilities
+├── encryption/         # AES-GCM encrypted storage (PBKDF2)
 ├── events/             # Event delegation (re-exports debounce/throttle from core)
 ├── features/           # Browser feature detection
 ├── focus/              # Focus management and focus trap
@@ -40,21 +45,27 @@ src/
 ├── html/               # HTML escaping and DOM helpers
 ├── idle/               # requestIdleCallback utilities
 ├── indexeddb/          # IndexedDB wrapper for large data
+├── intl/               # Intl formatting + locale negotiation
 ├── keyboard/           # Keyboard shortcut management
 ├── logging/            # Console logging with levels
 ├── media/              # Media queries and responsive utilities
 ├── network/            # Network status and retry queue
 ├── notification/       # Browser notification API
 ├── observe/            # Observer wrappers (Intersection, Resize, Mutation)
+├── offline/            # Offline queue for data sync
 ├── performance/        # Performance measurement utilities
+├── request/            # Fetch interceptor (middleware, auth, retry, dedupe)
 ├── sanitize/           # HTML sanitization utilities
 ├── scroll/             # Scroll utilities
 ├── session/            # SessionStorage management
+├── share/              # Web Share API with clipboard fallback
 ├── storage/            # LocalStorage management with fallback
 ├── url/                # URL building and query params
 ├── visibility/         # Page Visibility API wrapper
-├── websocket/          # WebSocket with auto-reconnect
-└── index.ts            # Main entry point
+├── wakelock/           # Screen Wake Lock API wrapper
+└── websocket/          # WebSocket with auto-reconnect
+
+(no src/index.ts — the package is subpath-exports only, one entry per module)
 
 tests/
 └── [mirrors src/ structure]
@@ -63,9 +74,8 @@ tests/
 └── workflows/
     └── ci.yml          # GitHub Actions CI/CD
 
-dist/                   # Compiled output (generated)
-├── esm/                # ES Modules
-└── cjs/                # CommonJS
+dist/                   # Compiled output (generated, ESM only)
+└── <module>/           # One directory per module (index.js + index.d.ts)
 ```
 
 ## Configuration Files
@@ -87,7 +97,9 @@ Module boundaries are enforced via `eslint-plugin-boundaries`:
 - **Allowed exceptions:**
   - `session/` → `storage/` (extends BaseStorageManager)
   - `offline/` → `indexeddb/` + `network/` (integration module)
-- **Entry point** (`src/index.ts`) — may import from all modules
+  - `share/` → `clipboard/` (clipboard fallback reuses ClipboardManager)
+
+See `docs/ARCHITECTURE.md` for the full dependency documentation.
 
 ## npm Scripts
 
@@ -134,7 +146,7 @@ Module boundaries are enforced via `eslint-plugin-boundaries`:
 | Functions  | 99%+       |
 | Lines      | 99%+       |
 
-## Current Modules (37)
+## Current Modules (39)
 
 | Module       | Path                | Purpose                                                                    |
 | ------------ | ------------------- | -------------------------------------------------------------------------- |
@@ -167,13 +179,15 @@ Module boundaries are enforced via `eslint-plugin-boundaries`:
 | observe      | `src/observe/`      | Intersection/Resize/Mutation                                               |
 | offline      | `src/offline/`      | Offline queue for data sync                                                |
 | performance  | `src/performance/`  | Performance measurement utilities                                          |
-| request      | `src/request/`      | Fetch/XHR interceptor with middleware                                      |
+| request      | `src/request/`      | Fetch interceptor: middleware, auth, retry, dedupe                         |
 | sanitize     | `src/sanitize/`     | HTML sanitization                                                          |
 | scroll       | `src/scroll/`       | Scroll utilities                                                           |
 | session      | `src/session/`      | SessionStorage management                                                  |
+| share        | `src/share/`        | Web Share API with clipboard fallback                                      |
 | storage      | `src/storage/`      | LocalStorage with memory fallback                                          |
 | url          | `src/url/`          | URL builder, query params                                                  |
 | visibility   | `src/visibility/`   | Page Visibility API wrapper                                                |
+| wakelock     | `src/wakelock/`     | Screen Wake Lock API wrapper                                               |
 | websocket    | `src/websocket/`    | WebSocket with auto-reconnect                                              |
 
 ## Planned Modules
@@ -260,12 +274,12 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ### Scopes
 
-`core`, `a11y`, `broadcast`, `clipboard`, `color`, `cookie`, `csp`, `device`,
-`download`, `events`, `features`, `focus`, `form`, `fullscreen`, `geolocation`,
-`html`, `idle`, `indexeddb`, `intl`, `keyboard`, `logging`, `media`, `network`,
-`notification`, `observe`, `offline`, `performance`, `request`, `sanitize`,
-`scroll`, `session`, `storage`, `url`, `visibility`, `websocket`, `build`,
-`deps`, `ci`
+`core`, `a11y`, `broadcast`, `cache`, `clipboard`, `color`, `cookie`, `csp`,
+`device`, `download`, `encryption`, `events`, `features`, `focus`, `form`,
+`fullscreen`, `geolocation`, `html`, `idle`, `indexeddb`, `intl`, `keyboard`,
+`logging`, `media`, `network`, `notification`, `observe`, `offline`,
+`performance`, `request`, `sanitize`, `scroll`, `session`, `share`, `storage`,
+`url`, `visibility`, `wakelock`, `websocket`, `build`, `deps`, `ci`
 
 ## CI/CD
 

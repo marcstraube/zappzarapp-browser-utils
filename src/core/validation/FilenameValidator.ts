@@ -170,4 +170,4 @@ export const FilenameValidator = {
 
     return Result.ok(mimeType);
   },
-} as const;
+};

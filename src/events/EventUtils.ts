@@ -260,4 +260,4 @@ export const EventUtils = {
       }
     };
   },
-} as const;
+};

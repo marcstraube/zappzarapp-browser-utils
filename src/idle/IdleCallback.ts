@@ -330,4 +330,4 @@ export const IdleCallback = {
       },
     };
   },
-} as const;
+};

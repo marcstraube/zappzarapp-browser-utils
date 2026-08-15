@@ -247,4 +247,4 @@ export const CookieManager = {
 
     return null;
   },
-} as const;
+};

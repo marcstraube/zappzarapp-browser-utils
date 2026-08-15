@@ -331,4 +331,4 @@ export const IntersectionObserverWrapper = {
       time: performance.now(),
     };
   },
-} as const;
+};

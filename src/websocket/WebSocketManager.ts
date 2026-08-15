@@ -770,4 +770,4 @@ export const WebSocketManager = {
       },
     };
   },
-} as const;
+};

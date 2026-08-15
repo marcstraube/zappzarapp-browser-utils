@@ -441,4 +441,4 @@ export const DeviceInfo = {
 
     return (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? null;
   },
-} as const;
+};

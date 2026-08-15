@@ -501,4 +501,4 @@ export const IndexedDBManager = {
       },
     };
   },
-} as const;
+};

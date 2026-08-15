@@ -353,4 +353,4 @@ export const FormSerializer = {
       valuesByName.set(name, [value]);
     }
   },
-} as const;
+};
