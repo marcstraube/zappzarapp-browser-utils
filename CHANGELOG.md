@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0](https://github.com/marcstraube/zappzarapp-node-browser-utils/compare/v2.1.0...v2.2.0) (2026-08-14)
+
+
+### Features
+
+* **keyboard:** make ShortcutManager adoptable as an app-wide shortcut surface ([#168](https://github.com/marcstraube/zappzarapp-node-browser-utils/issues/168)) ([119084c](https://github.com/marcstraube/zappzarapp-node-browser-utils/commit/119084c91d795c6e40d90705d5a74ffdb9dc59bf))
+* **request:** add request deduplication ([#196](https://github.com/marcstraube/zappzarapp-node-browser-utils/issues/196)) ([6db8212](https://github.com/marcstraube/zappzarapp-node-browser-utils/commit/6db821275870cfbac5694b6bbbf1e279a0505964))
+* **request:** support Retry-After header ([#186](https://github.com/marcstraube/zappzarapp-node-browser-utils/issues/186)) ([60ea1a1](https://github.com/marcstraube/zappzarapp-node-browser-utils/commit/60ea1a12fbee470f4a2de4a66fe372e0129c788c))
+* **share:** add Web Share API module ([#193](https://github.com/marcstraube/zappzarapp-node-browser-utils/issues/193)) ([6ca1c7e](https://github.com/marcstraube/zappzarapp-node-browser-utils/commit/6ca1c7e8ed46229f4697569ed0aefd0a94b01583))
+* **wakelock:** add Screen Wake Lock API module ([#176](https://github.com/marcstraube/zappzarapp-node-browser-utils/issues/176)) ([1917618](https://github.com/marcstraube/zappzarapp-node-browser-utils/commit/191761811ffe3f37890c74296591d795a9e3862f))
+
+
+### Bug Fixes
+
+* **request:** run error middleware and timing once on throwOnError ([#187](https://github.com/marcstraube/zappzarapp-node-browser-utils/issues/187)) ([706329c](https://github.com/marcstraube/zappzarapp-node-browser-utils/commit/706329c1fda667aaa870653acc88bbbb8cf5d04f))
+
 ## [2.1.0](https://github.com/marcstraube/zappzarapp-node-browser-utils/compare/v2.0.0...v2.1.0) (2026-06-15)
 
 
