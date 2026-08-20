@@ -199,7 +199,7 @@ jobs:
       # are invisible to Stryker's own diffing and would silently reuse
       # stale results otherwise.
       - name: Restore incremental mutation baseline
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: reports/stryker-incremental.json
           key: stryker-incremental-${{ hashFiles('pnpm-lock.yaml', 'stryker.config.js', 'vitest.config.ts', 'tsconfig.json') }}-${{ github.sha }}
@@ -220,7 +220,7 @@ jobs:
 
       - name: Save incremental mutation baseline
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: reports/stryker-incremental.json
           key: stryker-incremental-${{ hashFiles('pnpm-lock.yaml', 'stryker.config.js', 'vitest.config.ts', 'tsconfig.json') }}-${{ github.sha }}
